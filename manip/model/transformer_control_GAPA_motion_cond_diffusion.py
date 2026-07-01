@@ -21,6 +21,7 @@ from manip.data.cano_traj_dataset import quat_fk_torch, quat_ik_torch
 
 from manip.model.control_GAPA_transformer_module import Decoder, GeometryAwareProximityAdapter
 from manip.lafan1.utils import rotate_at_frame_w_obj_global, rotate_at_frame_w_obj, quat_slerp
+from manip.model.sdf_utils import sample_sdf_at_points, compute_sdf_gradients_fd
 
 import time as PyTime
 import copy
@@ -229,6 +230,16 @@ class TransformerDiffusionModel(nn.Module):
 
         self.bps_proj = nn.Linear(256, self.d_model)
 
+        # SDF feature projection: from raw SDF values to feat_dim for GAPA.
+        # Zero-initialized so the model starts behavior-identical to the original.
+        self.sdf_value_proj = nn.Sequential(
+            nn.Linear(1, 64),
+            nn.ReLU(),
+            nn.Linear(64, 128),
+        )
+        nn.init.zeros_(self.sdf_value_proj[-1].weight)
+        nn.init.zeros_(self.sdf_value_proj[-1].bias)
+
         # For noise level t embedding
         dim = 64
         learned_sinusoidal_dim = 16
@@ -251,7 +262,8 @@ class TransformerDiffusionModel(nn.Module):
             nn.Linear(time_dim, d_model)
         )
 
-    def forward(self, src, noise_t, condition = None, language_embedding=None, padding_mask=None):
+    def forward(self, src, noise_t, condition = None, language_embedding=None, padding_mask=None,
+                local_sdf_grid=None, local_sdf_origin=None, local_sdf_voxel_size=None, hand_query_points=None):
         # src: BS X T X D
         # noise_t: int
 
@@ -314,7 +326,25 @@ class TransformerDiffusionModel(nn.Module):
             bps_raw = condition[:, :, :256] # [BS, T, 256]
             bps_emb = self.bps_proj(bps_raw) # [BS, T, 512]
 
-            gaa_residual = self.gaa_block(motion_feats, bps_emb)
+            # Compute SDF features if local SDF data is provided (Experiment 1)
+            sdf_feat = None
+            sdf_values_avg = None
+            if local_sdf_grid is not None and hand_query_points is not None:
+                with torch.cuda.amp.autocast(enabled=False):
+                    B, T, K, _ = hand_query_points.shape
+                    flat_query = hand_query_points.reshape(B, T * K, 3)  # [B, T*4, 3]
+                    sdf_values_flat = sample_sdf_at_points(
+                        local_sdf_grid.float(), flat_query.float(),
+                        local_sdf_origin, local_sdf_voxel_size
+                    )  # [B, T*4, 1]
+                    sdf_values = sdf_values_flat.reshape(B, T, K, 1)  # [B, T, 4, 1]
+                    # Average SDF values across hand joints for attention bias
+                    sdf_values_avg = sdf_values.mean(dim=2)  # [B, T, 1]
+                # Project SDF values to features for GAPA
+                sdf_feat = self.sdf_value_proj(sdf_values_avg)  # [B, T, 128]
+
+            gaa_residual = self.gaa_block(motion_feats, bps_emb, sdf_feat=sdf_feat,
+                                           sdf_values=sdf_values_avg, sdf_gradients=None)
 
             feat_final = motion_feats + gaa_residual
         else:
@@ -443,11 +473,14 @@ class ObjectCondGaussianDiffusion(nn.Module):
         posterior_log_variance_clipped = extract(self.posterior_log_variance_clipped, t, x_t.shape)
         return posterior_mean, posterior_variance, posterior_log_variance_clipped
 
-    def p_mean_variance(self, x, t, x_cond, language_embedding=None, padding_mask=None, clip_denoised=True):
+    def p_mean_variance(self, x, t, x_cond, language_embedding=None, padding_mask=None, clip_denoised=True,
+                        local_sdf_grid=None, local_sdf_origin=None, local_sdf_voxel_size=None, hand_query_points=None):
         # x_all = torch.cat((x, x_cond), dim=-1)
         # model_output = self.denoise_fn(x_all, t)
 
-        model_output = self.denoise_fn(x, t, x_cond, language_embedding, padding_mask)
+        model_output = self.denoise_fn(x, t, x_cond, language_embedding, padding_mask,
+                                        local_sdf_grid=local_sdf_grid, local_sdf_origin=local_sdf_origin,
+                                        local_sdf_voxel_size=local_sdf_voxel_size, hand_query_points=hand_query_points)
 
         if self.objective == 'pred_noise':
             x_start = self.predict_start_from_noise(x, t = t, noise = model_output)
@@ -470,7 +503,8 @@ class ObjectCondGaussianDiffusion(nn.Module):
                                     prev_window_init_root_trans=None, \
                                     contact_labels=None, \
                                     curr_window_ref_obj_rot_mat=None, \
-                                    clip_denoised=True):
+                                    clip_denoised=True,
+                                    local_sdf_grid=None, local_sdf_origin=None, local_sdf_voxel_size=None, hand_query_points=None):
         # x_all = torch.cat((x, x_cond), dim=-1)
         # model_output = self.denoise_fn(x_all, t)
         with torch.enable_grad():
@@ -478,7 +512,9 @@ class ObjectCondGaussianDiffusion(nn.Module):
             # For reconstruction guidance
             x = x.detach().requires_grad_(True)
 
-            model_output = self.denoise_fn(x, t, x_cond, language_embedding, padding_mask)
+            model_output = self.denoise_fn(x, t, x_cond, language_embedding, padding_mask,
+                                            local_sdf_grid=local_sdf_grid, local_sdf_origin=local_sdf_origin,
+                                            local_sdf_voxel_size=local_sdf_voxel_size, hand_query_points=hand_query_points)
 
             if self.objective == 'pred_noise':
                 x_start = self.predict_start_from_noise(x, t = t, noise = model_output)
@@ -525,7 +561,8 @@ class ObjectCondGaussianDiffusion(nn.Module):
                     opt_fn=None, clip_denoised=True, \
                     rest_human_offsets=None, data_dict=None, cond_mask=None, padding_mask=None, \
                     prev_window_cano_rot_mat=None, prev_window_init_root_trans=None, \
-                    contact_labels=None, curr_window_ref_obj_rot_mat=None):
+                    contact_labels=None, curr_window_ref_obj_rot_mat=None,
+                    local_sdf_grid=None, local_sdf_origin=None, local_sdf_voxel_size=None, hand_query_points=None):
         b, *_, device = *x.shape, x.device
 
         use_reconstruction_guidance = True
@@ -539,13 +576,17 @@ class ObjectCondGaussianDiffusion(nn.Module):
                                         prev_window_cano_rot_mat=prev_window_cano_rot_mat, \
                                         prev_window_init_root_trans=prev_window_init_root_trans, \
                                         contact_labels=contact_labels, \
-                                        curr_window_ref_obj_rot_mat=curr_window_ref_obj_rot_mat)
+                                        curr_window_ref_obj_rot_mat=curr_window_ref_obj_rot_mat,
+                                        local_sdf_grid=local_sdf_grid, local_sdf_origin=local_sdf_origin,
+                                        local_sdf_voxel_size=local_sdf_voxel_size, hand_query_points=hand_query_points)
 
             new_mean = model_mean
         else: # Classifier-guidance
             model_mean, _, model_log_variance = self.p_mean_variance(x=x, t=t, x_cond=x_cond, \
                 language_embedding=language_embedding, \
-                padding_mask=padding_mask, clip_denoised=clip_denoised)
+                padding_mask=padding_mask, clip_denoised=clip_denoised,
+                local_sdf_grid=local_sdf_grid, local_sdf_origin=local_sdf_origin,
+                local_sdf_voxel_size=local_sdf_voxel_size, hand_query_points=hand_query_points)
 
             # classifier_scale = 1e3
 
@@ -584,7 +625,8 @@ class ObjectCondGaussianDiffusion(nn.Module):
 
     def p_sample_loop_guided(self, shape, x_cond, guidance_fn=None, language_embedding=None, opt_fn=None, \
                     rest_human_offsets=None, data_dict=None, contact_labels=None, \
-                    cond_mask=None, padding_mask=None):
+                    cond_mask=None, padding_mask=None,
+                    local_sdf_grid=None, local_sdf_origin=None, local_sdf_voxel_size=None, hand_query_points=None):
         device = self.betas.device
 
         b = shape[0]
@@ -596,21 +638,28 @@ class ObjectCondGaussianDiffusion(nn.Module):
                             x_cond, guidance_fn, language_embedding=language_embedding, \
                             opt_fn=opt_fn, rest_human_offsets=rest_human_offsets, \
                             data_dict=data_dict, contact_labels=contact_labels, \
-                            cond_mask=cond_mask, padding_mask=padding_mask)
+                            cond_mask=cond_mask, padding_mask=padding_mask,
+                            local_sdf_grid=local_sdf_grid, local_sdf_origin=local_sdf_origin,
+                            local_sdf_voxel_size=local_sdf_voxel_size, hand_query_points=hand_query_points)
 
                 # known_pose_conditions = x_cond[:, :, -x.shape[-1]:]
                 # x = (1 - cond_mask) * known_pose_conditions + cond_mask * x
             else:
                 x = self.p_sample(x, torch.full((b,), i, device=device, dtype=torch.long), x_cond, \
-                    language_embedding, padding_mask=padding_mask)
+                    language_embedding, padding_mask=padding_mask,
+                    local_sdf_grid=local_sdf_grid, local_sdf_origin=local_sdf_origin,
+                    local_sdf_voxel_size=local_sdf_voxel_size, hand_query_points=hand_query_points)
 
         return x # BS X T X D
 
     @torch.no_grad()
-    def p_sample(self, x, t, x_cond, language_embedding=None, padding_mask=None, clip_denoised=True):
+    def p_sample(self, x, t, x_cond, language_embedding=None, padding_mask=None, clip_denoised=True,
+                 local_sdf_grid=None, local_sdf_origin=None, local_sdf_voxel_size=None, hand_query_points=None):
         b, *_, device = *x.shape, x.device
         model_mean, _, model_log_variance = self.p_mean_variance(x=x, t=t, x_cond=x_cond, language_embedding=language_embedding, \
-            padding_mask=padding_mask, clip_denoised=clip_denoised)
+            padding_mask=padding_mask, clip_denoised=clip_denoised,
+            local_sdf_grid=local_sdf_grid, local_sdf_origin=local_sdf_origin,
+            local_sdf_voxel_size=local_sdf_voxel_size, hand_query_points=hand_query_points)
         noise = torch.randn_like(x)
         # no noise when t == 0
         nonzero_mask = (1 - (t == 0).float()).reshape(b, *((1,) * (len(x.shape) - 1)))
@@ -618,7 +667,8 @@ class ObjectCondGaussianDiffusion(nn.Module):
 
     @torch.no_grad()
     def p_sample_loop(self, shape, x_cond, language_embedding=None, padding_mask=None, \
-                cond_mask=None, ori_pose_cond=None, return_diff_level_res=False):
+                cond_mask=None, ori_pose_cond=None, return_diff_level_res=False,
+                local_sdf_grid=None, local_sdf_origin=None, local_sdf_voxel_size=None, hand_query_points=None):
         device = self.betas.device
 
         b = shape[0]
@@ -626,7 +676,9 @@ class ObjectCondGaussianDiffusion(nn.Module):
 
         for i in tqdm(reversed(range(0, self.num_timesteps)), desc='sampling loop time step', total=self.num_timesteps):
             x = self.p_sample(x, torch.full((b,), i, device=device, dtype=torch.long), x_cond, language_embedding, \
-            padding_mask=padding_mask)
+            padding_mask=padding_mask,
+            local_sdf_grid=local_sdf_grid, local_sdf_origin=local_sdf_origin,
+            local_sdf_voxel_size=local_sdf_voxel_size, hand_query_points=hand_query_points)
 
         return x # BS X T X D
 
@@ -636,7 +688,8 @@ class ObjectCondGaussianDiffusion(nn.Module):
                                 overlap_frame_num=1, input_waypoints=False, \
                                 contact_labels=None, language_input=None, \
                                 rest_human_offsets=None, data_dict=None, \
-                                guidance_fn=None, opt_fn=None):
+                                guidance_fn=None, opt_fn=None,
+                                local_sdf_grid=None, local_sdf_origin=None, local_sdf_voxel_size=None, hand_query_points=None):
         # object_names: BS
         # object_scales: BS X T
         # trans2joint: BS X 3
@@ -655,7 +708,9 @@ class ObjectCondGaussianDiffusion(nn.Module):
                 overlap_frame_num=overlap_frame_num, input_waypoints=input_waypoints, \
                 contact_labels=contact_labels, language_input=language_input, \
                 rest_human_offsets=rest_human_offsets, data_dict=data_dict, \
-                guidance_fn=guidance_fn, opt_fn=opt_fn)
+                guidance_fn=guidance_fn, opt_fn=opt_fn,
+                local_sdf_grid=local_sdf_grid, local_sdf_origin=local_sdf_origin,
+                local_sdf_voxel_size=local_sdf_voxel_size, hand_query_points=hand_query_points)
 
         # BS X T X D
         self.denoise_fn.train()
@@ -667,7 +722,8 @@ class ObjectCondGaussianDiffusion(nn.Module):
                                 x_start, ori_x_cond, cond_mask, padding_mask, \
                                 overlap_frame_num=1, input_waypoints=False, contact_labels=None, language_input=None, \
                                 rest_human_offsets=None, data_dict=None, \
-                                guidance_fn=None, opt_fn=None):
+                                guidance_fn=None, opt_fn=None,
+                                local_sdf_grid=None, local_sdf_origin=None, local_sdf_voxel_size=None, hand_query_points=None):
         # object_names: BS
         # obj_scales: BS X T
         # trans2joint: BS X 3
@@ -724,14 +780,18 @@ class ObjectCondGaussianDiffusion(nn.Module):
                                     guidance_fn=guidance_fn, opt_fn=opt_fn, \
                                     rest_human_offsets=rest_human_offsets, \
                                     data_dict=data_dict, cond_mask=cond_mask, \
-                                    contact_labels=curr_window_contact_labels)
+                                    contact_labels=curr_window_contact_labels,
+                                    local_sdf_grid=local_sdf_grid, local_sdf_origin=local_sdf_origin,
+                                    local_sdf_voxel_size=local_sdf_voxel_size, hand_query_points=hand_query_points)
 
                         # known_pose_conditions = curr_x_cond[:, :, -curr_x.shape[-1]:]
                         # curr_x = (1 - cond_mask) * known_pose_conditions + cond_mask * curr_x
 
                     else: # padding mask is not used now!
                         curr_x = self.p_sample(curr_x, torch.full((b,), i, device=device, dtype=torch.long), \
-                                curr_x_cond, language_embedding=language_embedding)
+                                curr_x_cond, language_embedding=language_embedding,
+                                local_sdf_grid=local_sdf_grid, local_sdf_origin=local_sdf_origin,
+                                local_sdf_voxel_size=local_sdf_voxel_size, hand_query_points=hand_query_points)
 
                 whole_sample_res = curr_x.clone() # BS X window_size X D (3+9+24*3+22*6)
 
@@ -911,10 +971,14 @@ class ObjectCondGaussianDiffusion(nn.Module):
                                     prev_window_cano_rot_mat=cano_rot_mat, \
                                     prev_window_init_root_trans=global_human_jpos[:, 0:1, 0, :], \
                                     contact_labels=curr_window_contact_labels, \
-                                    curr_window_ref_obj_rot_mat=new_obj_rot_mat[:, 0:1, :, :])
+                                    curr_window_ref_obj_rot_mat=new_obj_rot_mat[:, 0:1, :, :],
+                                    local_sdf_grid=local_sdf_grid, local_sdf_origin=local_sdf_origin,
+                                    local_sdf_voxel_size=local_sdf_voxel_size, hand_query_points=hand_query_points)
                     else:
                         curr_x = self.p_sample(curr_x, torch.full((b,), i, device=device, dtype=torch.long), curr_x_cond, \
-                                           language_embedding=language_embedding)
+                                           language_embedding=language_embedding,
+                                           local_sdf_grid=local_sdf_grid, local_sdf_origin=local_sdf_origin,
+                                           local_sdf_voxel_size=local_sdf_voxel_size, hand_query_points=hand_query_points)
 
                     # Overwrite the first few frames with previous results, need to canonicalize previous frames' res.
                     if i > 0:
@@ -1047,7 +1111,8 @@ class ObjectCondGaussianDiffusion(nn.Module):
     # @torch.no_grad()
     def sample(self, x_start, ori_x_cond, cond_mask=None, padding_mask=None, \
             language_input=None, contact_labels=None, rest_human_offsets=None, \
-            data_dict=None, guidance_fn=None, opt_fn=None, return_diff_level_res=False):
+            data_dict=None, guidance_fn=None, opt_fn=None, return_diff_level_res=False,
+            local_sdf_grid=None, local_sdf_origin=None, local_sdf_voxel_size=None, hand_query_points=None):
         # naive conditional sampling by replacing the noisy prediction with input target data.
         self.denoise_fn.eval()
         self.bps_encoder.eval()
@@ -1097,12 +1162,16 @@ class ObjectCondGaussianDiffusion(nn.Module):
                     x_cond, guidance_fn, opt_fn=opt_fn, \
                     language_embedding=language_embedding, rest_human_offsets=rest_human_offsets, \
                     data_dict=data_dict, contact_labels=contact_labels, \
-                    cond_mask=cond_mask, padding_mask=padding_mask)
+                    cond_mask=cond_mask, padding_mask=padding_mask,
+                    local_sdf_grid=local_sdf_grid, local_sdf_origin=local_sdf_origin,
+                    local_sdf_voxel_size=local_sdf_voxel_size, hand_query_points=hand_query_points)
             # BS X T X D
         else:
             sample_res = self.p_sample_loop(x_start.shape, x_cond, \
                     language_embedding=language_embedding, padding_mask=padding_mask, \
-                    cond_mask=cond_mask, ori_pose_cond=x_start, return_diff_level_res=return_diff_level_res)
+                    cond_mask=cond_mask, ori_pose_cond=x_start, return_diff_level_res=return_diff_level_res,
+                    local_sdf_grid=local_sdf_grid, local_sdf_origin=local_sdf_origin,
+                    local_sdf_voxel_size=local_sdf_voxel_size, hand_query_points=hand_query_points)
             # BS X T X D
 
         self.denoise_fn.train()
@@ -1119,7 +1188,8 @@ class ObjectCondGaussianDiffusion(nn.Module):
 
     def ddim_sample(self, x_start, ori_x_cond, cond_mask=None, padding_mask=None, \
             language_input=None, contact_labels=None, rest_human_offsets=None, \
-            data_dict=None, guidance_fn=None, opt_fn=None, return_diff_level_res=False):
+            data_dict=None, guidance_fn=None, opt_fn=None, return_diff_level_res=False,
+            local_sdf_grid=None, local_sdf_origin=None, local_sdf_voxel_size=None, hand_query_points=None):
         # naive conditional sampling by replacing the noisy prediction with input target data.
         self.denoise_fn.eval()
         self.bps_encoder.eval()
@@ -1171,7 +1241,9 @@ class ObjectCondGaussianDiffusion(nn.Module):
                     # model_output = self.denoise_fn(x, t, x_cond, language_embedding, padding_mask)
 
                     x_start = self.denoise_fn(x, time_cond, x_cond, padding_mask=padding_mask, \
-                        language_embedding=language_embedding)
+                        language_embedding=language_embedding,
+                        local_sdf_grid=local_sdf_grid, local_sdf_origin=local_sdf_origin,
+                        local_sdf_voxel_size=local_sdf_voxel_size, hand_query_points=hand_query_points)
 
                     # if self.objective == 'pred_noise':
                     #     x_start = self.predict_start_from_noise(x, t = t, noise = model_output)
@@ -1212,7 +1284,9 @@ class ObjectCondGaussianDiffusion(nn.Module):
 
                 else:
                     x_start = self.denoise_fn(x, time_cond, x_cond, padding_mask=padding_mask, \
-                            language_embedding=language_embedding)
+                            language_embedding=language_embedding,
+                            local_sdf_grid=local_sdf_grid, local_sdf_origin=local_sdf_origin,
+                            local_sdf_voxel_size=local_sdf_voxel_size, hand_query_points=hand_query_points)
 
                 pred_noise = self.predict_noise_from_start(x, time_cond, \
                     x_start=x_start)
@@ -1244,7 +1318,9 @@ class ObjectCondGaussianDiffusion(nn.Module):
             for time, time_next in tqdm(time_pairs, desc = 'sampling loop time step'):
                 time_cond = torch.full((batch,), time, device=device, dtype=torch.long)
                 x_start = self.denoise_fn(x, time_cond, x_cond, padding_mask=padding_mask, \
-                        language_embedding=language_embedding)
+                        language_embedding=language_embedding,
+                        local_sdf_grid=local_sdf_grid, local_sdf_origin=local_sdf_origin,
+                        local_sdf_voxel_size=local_sdf_voxel_size, hand_query_points=hand_query_points)
 
                 pred_noise = self.predict_noise_from_start(x, time_cond, \
                     x_start=x_start)
@@ -1301,7 +1377,8 @@ class ObjectCondGaussianDiffusion(nn.Module):
             raise ValueError(f'invalid loss type {self.loss_type}')
 
     def p_losses(self, x_start, x_cond, t, language_embedding=None, noise=None, \
-        padding_mask=None, rest_human_offsets=None, data_dict=None, ds=None):
+        padding_mask=None, rest_human_offsets=None, data_dict=None, ds=None,
+        local_sdf_grid=None, local_sdf_origin=None, local_sdf_voxel_size=None, hand_query_points=None):
         # x_start: BS X T X D
         # x_cond: BS X T X D_cond None
         # padding_mask: BS X 1 X T
@@ -1309,7 +1386,9 @@ class ObjectCondGaussianDiffusion(nn.Module):
 
         x = self.q_sample(x_start=x_start, t=t, noise=noise)
 
-        model_out = self.denoise_fn(x, t, x_cond, language_embedding=language_embedding, padding_mask=padding_mask)
+        model_out = self.denoise_fn(x, t, x_cond, language_embedding=language_embedding, padding_mask=padding_mask,
+                                     local_sdf_grid=local_sdf_grid, local_sdf_origin=local_sdf_origin,
+                                     local_sdf_voxel_size=local_sdf_voxel_size, hand_query_points=hand_query_points)
 
         if self.objective == 'pred_noise':
             target = noise
@@ -1449,7 +1528,8 @@ class ObjectCondGaussianDiffusion(nn.Module):
         return loss.mean(), loss_object.mean(), loss_human.mean()
 
     def forward(self, x_start, ori_x_cond, cond_mask=None, padding_mask=None, \
-                language_input=None, contact_labels=None, rest_human_offsets=None, data_dict=None, ds=None):
+                language_input=None, contact_labels=None, rest_human_offsets=None, data_dict=None, ds=None,
+                local_sdf_grid=None, local_sdf_origin=None, local_sdf_voxel_size=None, hand_query_points=None):
         # x_start: BS X T X D, we predict object motion
         # (relative rotation matrix 9-dim with respect to the first frame, absolute translation 3-dim)
         # ori_x_cond: BS X 1 X D' (com pos + BPS representation), we only use the first frame.
@@ -1496,12 +1576,16 @@ class ObjectCondGaussianDiffusion(nn.Module):
             curr_loss, curr_loss_obj, curr_loss_human, curr_loss_feet, curr_loss_fk, curr_loss_obj_pts = \
                         self.p_losses(x_start, x_cond, t, \
                         language_embedding=language_embedding, padding_mask=padding_mask, \
-                        rest_human_offsets=rest_human_offsets, data_dict=data_dict, ds=ds)
+                        rest_human_offsets=rest_human_offsets, data_dict=data_dict, ds=ds,
+                        local_sdf_grid=local_sdf_grid, local_sdf_origin=local_sdf_origin,
+                        local_sdf_voxel_size=local_sdf_voxel_size, hand_query_points=hand_query_points)
 
             return curr_loss, curr_loss_obj, curr_loss_human, curr_loss_feet, curr_loss_fk, curr_loss_obj_pts
         else:
             curr_loss, curr_loss_obj, curr_loss_human = self.p_losses(x_start, x_cond, t, \
                         language_embedding=language_embedding, padding_mask=padding_mask, \
-                        rest_human_offsets=rest_human_offsets, data_dict=data_dict, ds=ds)
+                        rest_human_offsets=rest_human_offsets, data_dict=data_dict, ds=ds,
+                        local_sdf_grid=local_sdf_grid, local_sdf_origin=local_sdf_origin,
+                        local_sdf_voxel_size=local_sdf_voxel_size, hand_query_points=hand_query_points)
 
             return curr_loss, curr_loss_obj, curr_loss_human

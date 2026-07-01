@@ -230,6 +230,8 @@ class Trainer(object):
 
         self.add_semantic_contact_labels = self.opt.add_semantic_contact_labels
 
+        self.use_local_sdf = self.opt.use_local_sdf
+
         self.test_unseen_objects = self.opt.test_unseen_objects
 
         self.save_res_folder = self.opt.save_res_folder
@@ -370,12 +372,14 @@ class Trainer(object):
             window=window_size, use_object_splits=self.use_object_split, \
             input_language_condition=self.add_language_condition, \
             use_random_frame_bps=self.use_random_frame_bps, \
-            use_object_keypoints=self.use_object_keypoints)
+            use_object_keypoints=self.use_object_keypoints, \
+            use_local_sdf=self.use_local_sdf)
         val_dataset = CanoObjectTrajDataset(train=False, data_root_folder=self.data_root_folder, \
             window=window_size, use_object_splits=self.use_object_split, \
             input_language_condition=self.add_language_condition, \
             use_random_frame_bps=self.use_random_frame_bps, \
-            use_object_keypoints=self.use_object_keypoints)
+            use_object_keypoints=self.use_object_keypoints, \
+            use_local_sdf=self.use_local_sdf)
 
         self.ds = train_dataset
         self.val_ds = val_dataset
@@ -476,6 +480,18 @@ class Trainer(object):
 
                 rest_human_offsets = data_dict['rest_human_offsets'].cuda() # BS X 24 X 3
 
+                # Extract SDF data from data_dict if use_local_sdf (Experiment 1)
+                if self.use_local_sdf:
+                    local_sdf_grid = data_dict['local_sdf_grid'].cuda()  # [B, 1, 64, 64, 64]
+                    local_sdf_origin = data_dict['local_sdf_origin'].cuda()  # [B, 3]
+                    local_sdf_voxel_size = data_dict['local_sdf_voxel_size'].cuda()  # scalar or [B]
+                    hand_query_points = data_dict['hand_query_points'].cuda()  # [B, T, 4, 3]
+                else:
+                    local_sdf_grid = None
+                    local_sdf_origin = None
+                    local_sdf_voxel_size = None
+                    hand_query_points = None
+
                 ori_data_cond = obj_bps_data # BS X 1 X (1024*3)
 
                 # Generate padding mask
@@ -513,10 +529,14 @@ class Trainer(object):
                         loss_diffusion, loss_obj, loss_human, loss_feet, loss_fk, loss_obj_pts = \
                         self.model(data, ori_data_cond, cond_mask, padding_mask, \
                         language_input=language_input, \
-                        rest_human_offsets=rest_human_offsets, ds=self.ds, data_dict=data_dict)
+                        rest_human_offsets=rest_human_offsets, ds=self.ds, data_dict=data_dict,
+                        local_sdf_grid=local_sdf_grid, local_sdf_origin=local_sdf_origin,
+                        local_sdf_voxel_size=local_sdf_voxel_size, hand_query_points=hand_query_points)
                     else:
                         loss_diffusion = self.model(data, ori_data_cond, cond_mask, padding_mask, \
-                        rest_human_offsets=rest_human_offsets)
+                        rest_human_offsets=rest_human_offsets,
+                        local_sdf_grid=local_sdf_grid, local_sdf_origin=local_sdf_origin,
+                        local_sdf_voxel_size=local_sdf_voxel_size, hand_query_points=hand_query_points)
 
                     if self.use_object_keypoints:
                         loss = loss_diffusion + self.loss_w_feet * loss_feet + \
@@ -593,6 +613,18 @@ class Trainer(object):
 
                     rest_human_offsets = val_data_dict['rest_human_offsets'].cuda() # BS X 24 X 3
 
+                    # Extract SDF data from val_data_dict if use_local_sdf (Experiment 1)
+                    if self.use_local_sdf:
+                        val_local_sdf_grid = val_data_dict['local_sdf_grid'].cuda()
+                        val_local_sdf_origin = val_data_dict['local_sdf_origin'].cuda()
+                        val_local_sdf_voxel_size = val_data_dict['local_sdf_voxel_size'].cuda()
+                        val_hand_query_points = val_data_dict['hand_query_points'].cuda()
+                    else:
+                        val_local_sdf_grid = None
+                        val_local_sdf_origin = None
+                        val_local_sdf_voxel_size = None
+                        val_hand_query_points = None
+
                     # Generate padding mask
                     actual_seq_len = val_data_dict['seq_len'] + 1 # BS, + 1 since we need additional timestep for noise level
                     tmp_mask = torch.arange(self.window+1).expand(val_obj_data.shape[0], \
@@ -625,11 +657,15 @@ class Trainer(object):
                                         self.model(data, ori_data_cond, cond_mask, padding_mask, \
                                         language_input=language_input, \
                                         rest_human_offsets=rest_human_offsets, \
-                                        ds=self.val_ds, data_dict=val_data_dict)
+                                        ds=self.val_ds, data_dict=val_data_dict,
+                                        local_sdf_grid=val_local_sdf_grid, local_sdf_origin=val_local_sdf_origin,
+                                        local_sdf_voxel_size=val_local_sdf_voxel_size, hand_query_points=val_hand_query_points)
 
                     else:
                         val_loss_diffusion = self.model(data, ori_data_cond, cond_mask, padding_mask, \
-                                        rest_human_offsets=rest_human_offsets)
+                                        rest_human_offsets=rest_human_offsets,
+                                        local_sdf_grid=val_local_sdf_grid, local_sdf_origin=val_local_sdf_origin,
+                                        local_sdf_voxel_size=val_local_sdf_voxel_size, hand_query_points=val_hand_query_points)
 
                     val_loss = val_loss_diffusion + self.loss_w_feet * val_loss_feet + \
                         self.loss_w_fk * val_loss_fk + self.loss_w_obj_pts * val_loss_obj_pts
@@ -655,10 +691,14 @@ class Trainer(object):
                         if self.add_language_condition:
                             all_res_list = self.ema.ema_model.sample(data, ori_data_cond, cond_mask, padding_mask, \
                                         language_input=language_input, \
-                                        rest_human_offsets=rest_human_offsets)
+                                        rest_human_offsets=rest_human_offsets,
+                                        local_sdf_grid=val_local_sdf_grid, local_sdf_origin=val_local_sdf_origin,
+                                        local_sdf_voxel_size=val_local_sdf_voxel_size, hand_query_points=val_hand_query_points)
                         else:
                             all_res_list = self.ema.ema_model.sample(data, ori_data_cond, cond_mask, padding_mask, \
-                                        rest_human_offsets=rest_human_offsets)
+                                        rest_human_offsets=rest_human_offsets,
+                                        local_sdf_grid=val_local_sdf_grid, local_sdf_origin=val_local_sdf_origin,
+                                        local_sdf_voxel_size=val_local_sdf_voxel_size, hand_query_points=val_hand_query_points)
 
                         for_vis_gt_data = torch.cat((val_obj_data, val_human_data), dim=-1)
 
@@ -1102,6 +1142,18 @@ class Trainer(object):
 
             rest_human_offsets = val_data_dict['rest_human_offsets'].cuda() # BS X 24 X 3
 
+            # Extract SDF data from val_data_dict if use_local_sdf (Experiment 1)
+            if self.use_local_sdf:
+                val_local_sdf_grid = val_data_dict['local_sdf_grid'].cuda()  # [B, 1, 64, 64, 64]
+                val_local_sdf_origin = val_data_dict['local_sdf_origin'].cuda()  # [B, 3]
+                val_local_sdf_voxel_size = val_data_dict['local_sdf_voxel_size'].cuda()  # scalar or [B]
+                val_hand_query_points = val_data_dict['hand_query_points'].cuda()  # [B, T, 4, 3]
+            else:
+                val_local_sdf_grid = None
+                val_local_sdf_origin = None
+                val_local_sdf_voxel_size = None
+                val_hand_query_points = None
+
             if "contact_labels" in val_data_dict:
                 contact_labels = val_data_dict['contact_labels'].cuda() # BS X T X 4
             else:
@@ -1161,13 +1213,17 @@ class Trainer(object):
                 all_res_list = self.ema.ema_model.sample(data, ori_data_cond, cond_mask, padding_mask, \
                             language_input=language_input, \
                             rest_human_offsets=rest_human_offsets, guidance_fn=guidance_fn, \
-                            data_dict=val_data_dict)
+                            data_dict=val_data_dict,
+                            local_sdf_grid=val_local_sdf_grid, local_sdf_origin=val_local_sdf_origin,
+                            local_sdf_voxel_size=val_local_sdf_voxel_size, hand_query_points=val_hand_query_points)
             else:
                 all_res_list = self.ema.ema_model.sample(data, ori_data_cond, \
                         cond_mask, padding_mask, \
                         rest_human_offsets=rest_human_offsets, \
                         guidance_fn=guidance_fn, \
-                        data_dict=val_data_dict)
+                        data_dict=val_data_dict,
+                        local_sdf_grid=val_local_sdf_grid, local_sdf_origin=val_local_sdf_origin,
+                        local_sdf_voxel_size=val_local_sdf_voxel_size, hand_query_points=val_hand_query_points)
 
             end_time = time.time()
             inf_time = end_time - start_time
@@ -1379,6 +1435,18 @@ class Trainer(object):
 
             rest_human_offsets = val_data_dict['rest_human_offsets'].cuda() # BS X 24 X 3
 
+            # Extract SDF data from val_data_dict if use_local_sdf (Experiment 1)
+            if self.use_local_sdf:
+                val_local_sdf_grid = val_data_dict['local_sdf_grid'].cuda()
+                val_local_sdf_origin = val_data_dict['local_sdf_origin'].cuda()
+                val_local_sdf_voxel_size = val_data_dict['local_sdf_voxel_size'].cuda()
+                val_hand_query_points = val_data_dict['hand_query_points'].cuda()
+            else:
+                val_local_sdf_grid = None
+                val_local_sdf_origin = None
+                val_local_sdf_voxel_size = None
+                val_hand_query_points = None
+
             print(">> Running Feature Correlation Probing...")
 
             # ==========================================
@@ -1492,13 +1560,17 @@ class Trainer(object):
                 all_res_list = self.ema.ema_model.sample(data, ori_data_cond, cond_mask, padding_mask, \
                             language_input=language_input, \
                             rest_human_offsets=rest_human_offsets, guidance_fn=guidance_fn, \
-                            data_dict=val_data_dict)
+                            data_dict=val_data_dict,
+                            local_sdf_grid=val_local_sdf_grid, local_sdf_origin=val_local_sdf_origin,
+                            local_sdf_voxel_size=val_local_sdf_voxel_size, hand_query_points=val_hand_query_points)
             else:
                 all_res_list = self.ema.ema_model.sample(data, ori_data_cond, \
                         cond_mask, padding_mask, \
                         rest_human_offsets=rest_human_offsets, \
                         guidance_fn=guidance_fn, \
-                        data_dict=val_data_dict)
+                        data_dict=val_data_dict,
+                        local_sdf_grid=val_local_sdf_grid, local_sdf_origin=val_local_sdf_origin,
+                        local_sdf_voxel_size=val_local_sdf_voxel_size, hand_query_points=val_hand_query_points)
             # ==========================================
 
             # ==========================================
@@ -2782,13 +2854,26 @@ class Trainer(object):
                             input_ds = self.unseen_seq_ds
                         else:
                             input_ds = self.ds
+                        # Extract SDF data for sliding window sampling
+                        if self.use_local_sdf:
+                            sw_local_sdf_grid = val_data_dict['local_sdf_grid'].cuda()
+                            sw_local_sdf_origin = val_data_dict['local_sdf_origin'].cuda()
+                            sw_local_sdf_voxel_size = val_data_dict['local_sdf_voxel_size'].cuda()
+                            sw_hand_query_points = val_data_dict['hand_query_points'].cuda()
+                        else:
+                            sw_local_sdf_grid = None
+                            sw_local_sdf_origin = None
+                            sw_local_sdf_voxel_size = None
+                            sw_hand_query_points = None
                         all_res_list = self.ema.ema_model.sample_sliding_window_w_canonical(input_ds, \
                             val_data_dict['obj_name'], val_data_dict['trans2joint'], \
                             data, ori_data_cond, cond_mask, padding_mask, overlap_frame_num, \
                             input_waypoints=True, language_input=text_clip_feats_list, \
                             contact_labels=contact_labels, \
                             rest_human_offsets=rest_human_offsets, guidance_fn=guidance_fn, \
-                            data_dict=val_data_dict)
+                            data_dict=val_data_dict,
+                            local_sdf_grid=sw_local_sdf_grid, local_sdf_origin=sw_local_sdf_origin,
+                            local_sdf_voxel_size=sw_local_sdf_voxel_size, hand_query_points=sw_hand_query_points)
 
                     # vis_tag = str(milestone)+"_final_long_seq_w_planned_waypoints_"+"_sidx_"+str(s_idx)+"_sample_cnt_"+str(sample_idx)
 
@@ -3568,6 +3653,10 @@ def parse_opt():
     parser.add_argument('--loss_w_obj_pts', type=float, default=1, help='the loss weight for fk loss')
 
     parser.add_argument("--add_semantic_contact_labels", action="store_true")
+
+    # SDF-enhanced GAPA attention (Experiment 1)
+    parser.add_argument("--use_local_sdf", action="store_true", default=False,
+                        help="Use local SDF volumes for SDF-enhanced GAPA attention")
 
     parser.add_argument("--test_unseen_objects", action="store_true")
 

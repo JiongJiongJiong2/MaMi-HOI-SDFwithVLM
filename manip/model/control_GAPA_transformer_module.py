@@ -237,9 +237,25 @@ class GeometryAwareProximityAdapter(nn.Module):
         nn.init.zeros_(self.fc.weight)
         nn.init.zeros_(self.fc.bias)
 
+        # SDF attention bias: maps SDF value to a scalar bias per query position.
+        # Zero-initialized so the model starts behavior-identical to the original.
+        self.sdf_bias_mlp = nn.Sequential(
+            nn.Linear(1, 32),
+            nn.ReLU(),
+            nn.Linear(32, 1),
+        )
+        nn.init.zeros_(self.sdf_bias_mlp[-1].weight)
+        nn.init.zeros_(self.sdf_bias_mlp[-1].bias)
+
+        # SDF feature projection: projects SDF features to value vector space.
+        # Zero-initialized so the model starts behavior-identical to the original.
+        self.sdf_feat_proj = nn.Linear(128, n_head * d_v)
+        nn.init.zeros_(self.sdf_feat_proj.weight)
+        nn.init.zeros_(self.sdf_feat_proj.bias)
+
         self.last_attn_weights = None
 
-    def forward(self, motion_feat, bps_feat):
+    def forward(self, motion_feat, bps_feat, sdf_feat=None, sdf_values=None, sdf_gradients=None):
         bs, n_q, _ = motion_feat.shape
         bs, n_k, _ = bps_feat.shape
 
@@ -268,6 +284,16 @@ class GeometryAwareProximityAdapter(nn.Module):
         dist_bias = -1.0 * self.dist_scale * dist_sq
 
         attn_score = content_score + dist_bias.to(content_score.dtype)
+
+        # SDF attention bias: maps SDF value to a scalar bias per query position.
+        # When the hand is near the object surface (small SDF), the bias increases
+        # attention to BPS features; when far, the bias reduces it.
+        if sdf_values is not None:
+            # sdf_values: [B, T, 1] -> sdf_bias: [B, T, 1]
+            sdf_bias = self.sdf_bias_mlp(sdf_values)
+            # Broadcast to [B, H, T, T] -- bias applies uniformly across keys
+            attn_score = attn_score + sdf_bias[:, None, :, :]
+
         attn_weights = F.softmax(attn_score, dim=-1) # [BS, H, T, T]
 
         if not self.training:
@@ -278,6 +304,17 @@ class GeometryAwareProximityAdapter(nn.Module):
         v_expanded = v.unsqueeze(2)
 
         v_final = v_expanded + rel_geo_feat
+
+        # SDF feature enhancement: project SDF features to value vector space.
+        # This allows the model to incorporate SDF information into the output
+        # representation, not just the attention weights.
+        if sdf_feat is not None:
+            # sdf_feat: [B, T, 128] -> project to [B, T, n_head * d_v]
+            sdf_v = self.sdf_feat_proj(sdf_feat)  # [B, T, n_head * d_v]
+            sdf_v = sdf_v.view(bs, n_q, self.n_head, self.d_v)  # [B, T, H, d_v]
+            sdf_v = sdf_v.transpose(1, 2)  # [B, H, T, d_v]
+            sdf_v = sdf_v.unsqueeze(2)  # [B, H, 1, T, d_v] -> broadcasts over key dimension
+            v_final = v_final + sdf_v
 
         # out: [BS, H, T, Dv]
         context = torch.sum(attn_weights.unsqueeze(-1) * v_final, dim=3)

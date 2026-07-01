@@ -126,6 +126,7 @@ class CanoObjectTrajDataset(Dataset):
         input_language_condition=False,
         use_random_frame_bps=False,
         use_object_keypoints=False,
+        use_local_sdf=False,
     ):
         self.train = train
 
@@ -142,10 +143,16 @@ class CanoObjectTrajDataset(Dataset):
 
         self.use_object_keypoints = use_object_keypoints
 
+        self.use_local_sdf = use_local_sdf
+
         self.parents = get_smpl_parents() # 24/22
 
         self.data_root_folder = data_root_folder
         self.obj_geo_root_folder = os.path.join(self.data_root_folder, "captured_objects")
+
+        # Local SDF data folder for SDF-enhanced GAPA (Experiment 1)
+        if self.use_local_sdf:
+            self.local_sdf_folder = os.path.join(self.data_root_folder, "local_sdf_patches")
 
         self.rest_object_geo_folder = os.path.join(self.data_root_folder, "rest_object_geo")
         if not os.path.exists(self.rest_object_geo_folder):
@@ -1010,6 +1017,26 @@ class CanoObjectTrajDataset(Dataset):
         if self.use_object_keypoints:
             data_input_dict['ori_obj_keypoints'] = paded_transformed_obj_nn_pts # T X K X 3
             data_input_dict['rest_pose_obj_pts'] = rest_pose_obj_nn_pts # K X 3
+
+        # Load local SDF data for SDF-enhanced GAPA (Experiment 1)
+        if self.use_local_sdf:
+            local_sdf_path = os.path.join(self.local_sdf_folder, f'{seq_name}.pt')
+            if os.path.exists(local_sdf_path):
+                local_sdf_data = torch.load(local_sdf_path, map_location='cpu')
+                data_input_dict['local_sdf_grid'] = local_sdf_data['sdf_grid']  # [1, 64, 64, 64]
+                data_input_dict['local_sdf_origin'] = local_sdf_data['origin']  # [3]
+                data_input_dict['local_sdf_voxel_size'] = local_sdf_data['voxel_size']  # scalar
+                # hand_query_points: [T_orig, 4, 3], pad if shorter than window
+                hqp = local_sdf_data['hand_query_points']  # [T_orig, 4, 3]
+                if hqp.shape[0] < self.window:
+                    hqp = torch.cat([hqp, torch.zeros(self.window - hqp.shape[0], 4, 3)], dim=0)
+                data_input_dict['hand_query_points'] = hqp[:self.window]  # [window, 4, 3]
+            else:
+                # Fallback: zero tensors (should not happen if precompute ran correctly)
+                data_input_dict['local_sdf_grid'] = torch.zeros(1, 64, 64, 64)
+                data_input_dict['local_sdf_origin'] = torch.zeros(3)
+                data_input_dict['local_sdf_voxel_size'] = torch.tensor(1.0)
+                data_input_dict['hand_query_points'] = torch.zeros(self.window, 4, 3)
 
         return data_input_dict
         # data_input_dict['motion']: T X (22*3+22*6) range [-1, 1]

@@ -1,0 +1,4 @@
+experiment,seed,split,baseline_checkpoint,train_steps,loss_w_sdf,loss_w_sdf_contrastive,sdf_penetration_weight,sdf_contact_weight,sdf_contrast_margin,guidance_enabled,contact_precision,contact_recall,contact_f1,d_hand_mm,hand_penetration,hand_jpe_mm,mpjpe_mm,foot_sliding,object_com_error_mm,object_rot_error,matching_score,r_precision,fid,train_steps_per_sec,peak_vram_gb,inference_seconds_per_sequence,metrics_json,run_notes
+E0,1,standard,/path/to/baseline.pt,0,0,0,0,0,0,true,,,,,,,,,,,,,,,,,,,
+E1,1,standard,/path/to/baseline.pt,20000,1.0,0,1.0,1.0,0.02,true,,,,,,,,,,,,,,,,,,,
+E2,1,standard,/path/to/baseline.pt,20000,1.0,1.0,1.0,1.0,0.02,true,,,,,,,,,,,,,,,,,,,

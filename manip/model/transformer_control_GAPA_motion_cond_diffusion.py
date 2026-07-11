@@ -21,7 +21,14 @@ from manip.data.cano_traj_dataset import quat_fk_torch, quat_ik_torch
 
 from manip.model.control_GAPA_transformer_module import Decoder, GeometryAwareProximityAdapter
 from manip.lafan1.utils import rotate_at_frame_w_obj_global, rotate_at_frame_w_obj, quat_slerp
-from manip.model.sdf_utils import sample_sdf_at_points, compute_sdf_gradients_fd
+from manip.model.sdf_utils import (
+    sample_sdf_at_points,
+    compute_sdf_gradients_fd,
+    world_to_object_points,
+    sample_object_sdf_at_points,
+    sdf_contact_losses,
+    sdf_trajectory_ranking_loss,
+)
 
 import time as PyTime
 import copy
@@ -394,6 +401,13 @@ class ObjectCondGaussianDiffusion(nn.Module):
         # self.object_encoder = Pointnet()
 
         self.use_object_keypoints = use_object_keypoints  # true
+        self.use_dynamic_sdf = getattr(opt, 'use_dynamic_sdf', False)
+        self.use_sdf_contrastive = getattr(opt, 'use_sdf_contrastive', False)
+        self.sdf_penetration_weight = getattr(opt, 'sdf_penetration_weight', 1.0)
+        self.sdf_contact_weight = getattr(opt, 'sdf_contact_weight', 1.0)
+        self.sdf_contrast_margin = getattr(opt, 'sdf_contrast_margin', 0.02)
+        self.sdf_penetration_value = getattr(opt, 'sdf_penetration_value', -0.03)
+        self.sdf_floating_value = getattr(opt, 'sdf_floating_value', 0.10)
 
         obj_feats_dim = 256
         d_input_feats = 2*d_feats+obj_feats_dim # 440 + 256
@@ -1376,9 +1390,82 @@ class ObjectCondGaussianDiffusion(nn.Module):
         else:
             raise ValueError(f'invalid loss type {self.loss_type}')
 
+    def compute_dynamic_sdf_losses(
+        self,
+        pred_palm_world,
+        gt_palm_world,
+        pred_obj_rot_mat,
+        pred_obj_com_pos,
+        gt_obj_rot_mat,
+        gt_obj_com_pos,
+        object_sdf_grid,
+        object_sdf_centroid,
+        object_sdf_extents,
+        contact_mask,
+        valid_mask,
+    ):
+        """Query predicted/GT hand trajectories against a canonical object SDF.
+
+        All query locations are derived from predicted or GT motion *inside the
+        loss*. They are never passed to the denoiser as conditioning input.
+        """
+        bs, num_steps, num_hands, _ = pred_palm_world.shape
+        pred_palm_object = world_to_object_points(
+            pred_palm_world, pred_obj_rot_mat, pred_obj_com_pos
+        )
+        gt_palm_object = world_to_object_points(
+            gt_palm_world, gt_obj_rot_mat, gt_obj_com_pos
+        )
+
+        pred_sdf = sample_object_sdf_at_points(
+            object_sdf_grid.float(),
+            pred_palm_object.reshape(bs, num_steps * num_hands, 3).float(),
+            object_sdf_centroid.float(),
+            object_sdf_extents.float(),
+        ).reshape(bs, num_steps, num_hands)
+        gt_sdf = sample_object_sdf_at_points(
+            object_sdf_grid.float(),
+            gt_palm_object.reshape(bs, num_steps * num_hands, 3).float(),
+            object_sdf_centroid.float(),
+            object_sdf_extents.float(),
+        ).reshape(bs, num_steps, num_hands)
+
+        object_scale = object_sdf_extents.max(dim=-1).values[:, None, None].clamp_min(1e-6)
+        pred_sdf_normalized = pred_sdf / object_scale
+        gt_sdf_normalized = gt_sdf / object_scale
+
+        loss_penetration, loss_contact = sdf_contact_losses(
+            pred_sdf_normalized, contact_mask, valid_mask
+        )
+        loss_sdf = (
+            self.sdf_penetration_weight * loss_penetration
+            + self.sdf_contact_weight * loss_contact
+        )
+        if self.use_sdf_contrastive:
+            loss_contrastive = sdf_trajectory_ranking_loss(
+                pred_sdf_normalized,
+                gt_sdf_normalized,
+                contact_mask,
+                valid_mask,
+                penetration_value=self.sdf_penetration_value,
+                floating_value=self.sdf_floating_value,
+                margin=self.sdf_contrast_margin,
+            )
+        else:
+            loss_contrastive = loss_sdf.new_zeros(())
+
+        stats = {
+            'loss_penetration': loss_penetration.detach(),
+            'loss_contact': loss_contact.detach(),
+            'pred_sdf_abs_mean': pred_sdf_normalized.detach().abs().mean(),
+            'gt_sdf_abs_mean': gt_sdf_normalized.detach().abs().mean(),
+        }
+        return loss_sdf, loss_contrastive, stats
+
     def p_losses(self, x_start, x_cond, t, language_embedding=None, noise=None, \
         padding_mask=None, rest_human_offsets=None, data_dict=None, ds=None,
-        local_sdf_grid=None, local_sdf_origin=None, local_sdf_voxel_size=None, hand_query_points=None):
+        local_sdf_grid=None, local_sdf_origin=None, local_sdf_voxel_size=None, hand_query_points=None,
+        object_sdf_grid=None, object_sdf_centroid=None, object_sdf_extents=None):
         # x_start: BS X T X D
         # x_cond: BS X T X D_cond None
         # padding_mask: BS X 1 X T
@@ -1412,6 +1499,8 @@ class ObjectCondGaussianDiffusion(nn.Module):
         # pdb.set_trace()
 
         loss_object = loss_reshaped[:, :, :12] # [32, 120, 12]
+        loss_sdf = loss.new_zeros(())
+        loss_sdf_contrastive = loss.new_zeros(())
 
         if loss_reshaped.shape[-1] == 12: # objetc motion only
             loss_human = torch.zeros(1)
@@ -1522,14 +1611,49 @@ class ObjectCondGaussianDiffusion(nn.Module):
 
             loss_obj_pts = loss_obj_pts * extract(self.p2_loss_weight, t, loss_obj_pts.shape)
 
+            if self.use_dynamic_sdf:
+                if object_sdf_grid is None or object_sdf_centroid is None or object_sdf_extents is None:
+                    raise ValueError(
+                        "Dynamic SDF is enabled but object_sdf_grid/centroid/extents were not provided."
+                    )
+                if padding_mask is None:
+                    valid_mask = torch.ones(
+                        bs, num_steps, 1, device=model_out.device, dtype=model_out.dtype
+                    )
+                else:
+                    valid_mask = padding_mask[:, 0, 1:].to(model_out.dtype).unsqueeze(-1)
+                # Contact labels are ordered as left hand, right hand, left foot, right foot.
+                contact_mask = target[:, :, -4:-2].clamp(0, 1).to(model_out.dtype)
+                pred_palm_world = human_jnts[:, :, 22:24, :]
+                gt_palm_world = gt_global_jpos[:, :, 22:24, :]
+                gt_obj_rot_mat = data_dict['obj_rot_mat'].to(model_out.device)
+                gt_obj_com_pos = data_dict['obj_com_pos'].to(model_out.device)
+
+                with torch.cuda.amp.autocast(enabled=False):
+                    loss_sdf, loss_sdf_contrastive, _ = self.compute_dynamic_sdf_losses(
+                        pred_palm_world.float(),
+                        gt_palm_world.float(),
+                        pred_obj_rot_mat.float(),
+                        pred_obj_com_pos.float(),
+                        gt_obj_rot_mat.float(),
+                        gt_obj_com_pos.float(),
+                        object_sdf_grid.float(),
+                        object_sdf_centroid.float(),
+                        object_sdf_extents.float(),
+                        contact_mask.float(),
+                        valid_mask.float(),
+                    )
+
             return loss.mean(), loss_object.mean(), loss_human.mean(), \
-                foot_loss.mean(), fk_loss.mean(), loss_obj_pts.mean()
+                foot_loss.mean(), fk_loss.mean(), loss_obj_pts.mean(), \
+                loss_sdf, loss_sdf_contrastive
 
         return loss.mean(), loss_object.mean(), loss_human.mean()
 
     def forward(self, x_start, ori_x_cond, cond_mask=None, padding_mask=None, \
                 language_input=None, contact_labels=None, rest_human_offsets=None, data_dict=None, ds=None,
-                local_sdf_grid=None, local_sdf_origin=None, local_sdf_voxel_size=None, hand_query_points=None):
+                local_sdf_grid=None, local_sdf_origin=None, local_sdf_voxel_size=None, hand_query_points=None,
+                object_sdf_grid=None, object_sdf_centroid=None, object_sdf_extents=None):
         # x_start: BS X T X D, we predict object motion
         # (relative rotation matrix 9-dim with respect to the first frame, absolute translation 3-dim)
         # ori_x_cond: BS X 1 X D' (com pos + BPS representation), we only use the first frame.
@@ -1573,14 +1697,18 @@ class ObjectCondGaussianDiffusion(nn.Module):
             language_embedding = None
 
         if self.use_object_keypoints:
-            curr_loss, curr_loss_obj, curr_loss_human, curr_loss_feet, curr_loss_fk, curr_loss_obj_pts = \
+            curr_loss, curr_loss_obj, curr_loss_human, curr_loss_feet, curr_loss_fk, curr_loss_obj_pts, \
+            curr_loss_sdf, curr_loss_sdf_contrastive = \
                         self.p_losses(x_start, x_cond, t, \
                         language_embedding=language_embedding, padding_mask=padding_mask, \
                         rest_human_offsets=rest_human_offsets, data_dict=data_dict, ds=ds,
                         local_sdf_grid=local_sdf_grid, local_sdf_origin=local_sdf_origin,
-                        local_sdf_voxel_size=local_sdf_voxel_size, hand_query_points=hand_query_points)
+                        local_sdf_voxel_size=local_sdf_voxel_size, hand_query_points=hand_query_points,
+                        object_sdf_grid=object_sdf_grid, object_sdf_centroid=object_sdf_centroid,
+                        object_sdf_extents=object_sdf_extents)
 
-            return curr_loss, curr_loss_obj, curr_loss_human, curr_loss_feet, curr_loss_fk, curr_loss_obj_pts
+            return curr_loss, curr_loss_obj, curr_loss_human, curr_loss_feet, curr_loss_fk, curr_loss_obj_pts, \
+                curr_loss_sdf, curr_loss_sdf_contrastive
         else:
             curr_loss, curr_loss_obj, curr_loss_human = self.p_losses(x_start, x_cond, t, \
                         language_embedding=language_embedding, padding_mask=padding_mask, \

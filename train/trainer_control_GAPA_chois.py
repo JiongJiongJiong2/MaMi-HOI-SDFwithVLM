@@ -45,6 +45,15 @@ torch.manual_seed(1)
 random.seed(1)
 
 
+def set_experiment_seed(seed):
+    """Set the seed once CLI options are available, for paired E0/E1/E2 runs."""
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.benchmark = False
+
 
 def export_to_ply(points, filename='output.ply'):
     # Open the file in write mode
@@ -231,6 +240,14 @@ class Trainer(object):
         self.add_semantic_contact_labels = self.opt.add_semantic_contact_labels
 
         self.use_local_sdf = self.opt.use_local_sdf
+        self.use_dynamic_sdf = self.opt.use_dynamic_sdf
+        self.use_sdf_contrastive = self.opt.use_sdf_contrastive
+        self.loss_w_sdf = self.opt.loss_w_sdf
+        self.loss_w_sdf_contrastive = self.opt.loss_w_sdf_contrastive
+        if self.use_dynamic_sdf and self.use_local_sdf:
+            raise ValueError("Dynamic SDF and legacy local SDF cannot be enabled together.")
+        if self.use_sdf_contrastive and not self.use_dynamic_sdf:
+            raise ValueError("--use_sdf_contrastive requires --use_dynamic_sdf.")
 
         self.test_unseen_objects = self.opt.test_unseen_objects
 
@@ -373,13 +390,15 @@ class Trainer(object):
             input_language_condition=self.add_language_condition, \
             use_random_frame_bps=self.use_random_frame_bps, \
             use_object_keypoints=self.use_object_keypoints, \
-            use_local_sdf=self.use_local_sdf)
+            use_local_sdf=self.use_local_sdf, \
+            use_dynamic_sdf=self.use_dynamic_sdf)
         val_dataset = CanoObjectTrajDataset(train=False, data_root_folder=self.data_root_folder, \
             window=window_size, use_object_splits=self.use_object_split, \
             input_language_condition=self.add_language_condition, \
             use_random_frame_bps=self.use_random_frame_bps, \
             use_object_keypoints=self.use_object_keypoints, \
-            use_local_sdf=self.use_local_sdf)
+            use_local_sdf=self.use_local_sdf, \
+            use_dynamic_sdf=self.use_dynamic_sdf)
 
         self.ds = train_dataset
         self.val_ds = val_dataset
@@ -407,6 +426,15 @@ class Trainer(object):
         self.model.load_state_dict(data['model'], strict=False)
         self.ema.load_state_dict(data['ema'], strict=False)
         self.scaler.load_state_dict(data['scaler'])
+
+    def load_for_finetune(self, checkpoint_path):
+        """Load model/EMA weights but reset the step and optimiser state."""
+        data = torch.load(checkpoint_path, map_location='cpu')
+        self.model.load_state_dict(data['model'], strict=False)
+        if 'ema' in data:
+            self.ema.load_state_dict(data['ema'], strict=False)
+        self.step = 0
+        print(f"Loaded fine-tune weights from {checkpoint_path}; reset training step to 0.")
 
     def prep_start_end_condition_mask_pos_only(self, data, actual_seq_len):
         # data: BS X T X D (3+9)
@@ -492,6 +520,15 @@ class Trainer(object):
                     local_sdf_voxel_size = None
                     hand_query_points = None
 
+                if self.use_dynamic_sdf:
+                    object_sdf_grid = data_dict['object_sdf_grid'].cuda(non_blocking=True)
+                    object_sdf_centroid = data_dict['object_sdf_centroid'].cuda(non_blocking=True)
+                    object_sdf_extents = data_dict['object_sdf_extents'].cuda(non_blocking=True)
+                else:
+                    object_sdf_grid = None
+                    object_sdf_centroid = None
+                    object_sdf_extents = None
+
                 ori_data_cond = obj_bps_data # BS X 1 X (1024*3)
 
                 # Generate padding mask
@@ -526,21 +563,38 @@ class Trainer(object):
                         language_input = self.encode_text(text_anno_data) # BS X 512
                         language_input = language_input.to(data.device)
 
-                        loss_diffusion, loss_obj, loss_human, loss_feet, loss_fk, loss_obj_pts = \
+                        loss_diffusion, loss_obj, loss_human, loss_feet, loss_fk, loss_obj_pts, \
+                        loss_sdf, loss_sdf_contrastive = \
                         self.model(data, ori_data_cond, cond_mask, padding_mask, \
                         language_input=language_input, \
                         rest_human_offsets=rest_human_offsets, ds=self.ds, data_dict=data_dict,
                         local_sdf_grid=local_sdf_grid, local_sdf_origin=local_sdf_origin,
-                        local_sdf_voxel_size=local_sdf_voxel_size, hand_query_points=hand_query_points)
+                        local_sdf_voxel_size=local_sdf_voxel_size, hand_query_points=hand_query_points,
+                        object_sdf_grid=object_sdf_grid, object_sdf_centroid=object_sdf_centroid,
+                        object_sdf_extents=object_sdf_extents)
                     else:
-                        loss_diffusion = self.model(data, ori_data_cond, cond_mask, padding_mask, \
-                        rest_human_offsets=rest_human_offsets,
-                        local_sdf_grid=local_sdf_grid, local_sdf_origin=local_sdf_origin,
-                        local_sdf_voxel_size=local_sdf_voxel_size, hand_query_points=hand_query_points)
+                        if self.use_object_keypoints:
+                            loss_diffusion, loss_obj, loss_human, loss_feet, loss_fk, loss_obj_pts, \
+                            loss_sdf, loss_sdf_contrastive = self.model(
+                                data, ori_data_cond, cond_mask, padding_mask,
+                                rest_human_offsets=rest_human_offsets, ds=self.ds, data_dict=data_dict,
+                                local_sdf_grid=local_sdf_grid, local_sdf_origin=local_sdf_origin,
+                                local_sdf_voxel_size=local_sdf_voxel_size, hand_query_points=hand_query_points,
+                                object_sdf_grid=object_sdf_grid,
+                                object_sdf_centroid=object_sdf_centroid,
+                                object_sdf_extents=object_sdf_extents,
+                            )
+                        else:
+                            loss_diffusion = self.model(data, ori_data_cond, cond_mask, padding_mask, \
+                                rest_human_offsets=rest_human_offsets,
+                                local_sdf_grid=local_sdf_grid, local_sdf_origin=local_sdf_origin,
+                                local_sdf_voxel_size=local_sdf_voxel_size, hand_query_points=hand_query_points)
 
                     if self.use_object_keypoints:
                         loss = loss_diffusion + self.loss_w_feet * loss_feet + \
-                            self.loss_w_fk * loss_fk + self.loss_w_obj_pts * loss_obj_pts
+                            self.loss_w_fk * loss_fk + self.loss_w_obj_pts * loss_obj_pts + \
+                            self.loss_w_sdf * loss_sdf + \
+                            self.loss_w_sdf_contrastive * loss_sdf_contrastive
                     else:
                         loss = loss_diffusion
 
@@ -571,6 +625,8 @@ class Trainer(object):
                                 "Train/Loss/Semantic Contact Loss": loss_feet.item(),
                                 "Train/Loss/FK Loss": loss_fk.item(),
                                 "Train/Loss/Object Pts Loss": loss_obj_pts.item(),
+                                "Train/Loss/Dynamic SDF": loss_sdf.item(),
+                                "Train/Loss/SDF Ranking": loss_sdf_contrastive.item(),
                             }
                         else:
                             log_dict = {
@@ -590,6 +646,8 @@ class Trainer(object):
                             print("Semantic Contact Loss: %.4f" % (loss_feet.item()))
                             print("FK Loss: %.4f" % (loss_fk.item()))
                             print("Object Pts Loss: %.4f" % (loss_obj_pts.item()))
+                            print("Dynamic SDF Loss: %.4f" % (loss_sdf.item()))
+                            print("SDF Ranking Loss: %.4f" % (loss_sdf_contrastive.item()))
 
             if nan_exists:
                 continue
@@ -625,6 +683,15 @@ class Trainer(object):
                         val_local_sdf_voxel_size = None
                         val_hand_query_points = None
 
+                    if self.use_dynamic_sdf:
+                        val_object_sdf_grid = val_data_dict['object_sdf_grid'].cuda(non_blocking=True)
+                        val_object_sdf_centroid = val_data_dict['object_sdf_centroid'].cuda(non_blocking=True)
+                        val_object_sdf_extents = val_data_dict['object_sdf_extents'].cuda(non_blocking=True)
+                    else:
+                        val_object_sdf_grid = None
+                        val_object_sdf_centroid = None
+                        val_object_sdf_extents = None
+
                     # Generate padding mask
                     actual_seq_len = val_data_dict['seq_len'] + 1 # BS, + 1 since we need additional timestep for noise level
                     tmp_mask = torch.arange(self.window+1).expand(val_obj_data.shape[0], \
@@ -653,22 +720,43 @@ class Trainer(object):
                         language_input = self.encode_text(text_anno_data) # BS X 512
                         language_input = language_input.to(data.device)
 
-                        val_loss_diffusion, val_loss_obj, val_loss_human, val_loss_feet, val_loss_fk, val_loss_obj_pts = \
+                        val_loss_diffusion, val_loss_obj, val_loss_human, val_loss_feet, val_loss_fk, val_loss_obj_pts, \
+                        val_loss_sdf, val_loss_sdf_contrastive = \
                                         self.model(data, ori_data_cond, cond_mask, padding_mask, \
                                         language_input=language_input, \
                                         rest_human_offsets=rest_human_offsets, \
                                         ds=self.val_ds, data_dict=val_data_dict,
                                         local_sdf_grid=val_local_sdf_grid, local_sdf_origin=val_local_sdf_origin,
-                                        local_sdf_voxel_size=val_local_sdf_voxel_size, hand_query_points=val_hand_query_points)
+                                        local_sdf_voxel_size=val_local_sdf_voxel_size, hand_query_points=val_hand_query_points,
+                                        object_sdf_grid=val_object_sdf_grid,
+                                        object_sdf_centroid=val_object_sdf_centroid,
+                                        object_sdf_extents=val_object_sdf_extents)
 
                     else:
-                        val_loss_diffusion = self.model(data, ori_data_cond, cond_mask, padding_mask, \
-                                        rest_human_offsets=rest_human_offsets,
-                                        local_sdf_grid=val_local_sdf_grid, local_sdf_origin=val_local_sdf_origin,
-                                        local_sdf_voxel_size=val_local_sdf_voxel_size, hand_query_points=val_hand_query_points)
+                        if self.use_object_keypoints:
+                            val_loss_diffusion, val_loss_obj, val_loss_human, val_loss_feet, val_loss_fk, \
+                            val_loss_obj_pts, val_loss_sdf, val_loss_sdf_contrastive = self.model(
+                                data, ori_data_cond, cond_mask, padding_mask,
+                                rest_human_offsets=rest_human_offsets,
+                                ds=self.val_ds, data_dict=val_data_dict,
+                                local_sdf_grid=val_local_sdf_grid, local_sdf_origin=val_local_sdf_origin,
+                                local_sdf_voxel_size=val_local_sdf_voxel_size,
+                                hand_query_points=val_hand_query_points,
+                                object_sdf_grid=val_object_sdf_grid,
+                                object_sdf_centroid=val_object_sdf_centroid,
+                                object_sdf_extents=val_object_sdf_extents,
+                            )
+                        else:
+                            val_loss_diffusion = self.model(data, ori_data_cond, cond_mask, padding_mask, \
+                                rest_human_offsets=rest_human_offsets,
+                                local_sdf_grid=val_local_sdf_grid, local_sdf_origin=val_local_sdf_origin,
+                                local_sdf_voxel_size=val_local_sdf_voxel_size,
+                                hand_query_points=val_hand_query_points)
 
                     val_loss = val_loss_diffusion + self.loss_w_feet * val_loss_feet + \
-                        self.loss_w_fk * val_loss_fk + self.loss_w_obj_pts * val_loss_obj_pts
+                        self.loss_w_fk * val_loss_fk + self.loss_w_obj_pts * val_loss_obj_pts + \
+                        self.loss_w_sdf * val_loss_sdf + \
+                        self.loss_w_sdf_contrastive * val_loss_sdf_contrastive
 
                     if self.use_wandb:
                         val_log_dict = {
@@ -679,6 +767,8 @@ class Trainer(object):
                             "Validation/Loss/Semantic Contact Loss": val_loss_feet.item(),
                             "Validation/Loss/FK Loss": val_loss_fk.item(),
                             "Validation/Loss/Object Pts Loss": val_loss_obj_pts.item(),
+                            "Validation/Loss/Dynamic SDF": val_loss_sdf.item(),
+                            "Validation/Loss/SDF Ranking": val_loss_sdf_contrastive.item(),
                         }
 
                         wandb.log(val_log_dict)
@@ -710,7 +800,11 @@ class Trainer(object):
 
             self.step += 1
 
-        print('training complete')
+        # The loop increments self.step after the periodic-save condition, so a
+        # short run ending exactly at SAVE_EVERY would otherwise have no final
+        # checkpoint. Always keep an explicit final checkpoint for E1/E2.
+        self.save(f'final-{self.step}')
+        print(f'training complete; saved final checkpoint at step {self.step}')
 
         if self.use_wandb:
             wandb.run.finish()
@@ -3502,6 +3596,13 @@ class Trainer(object):
         obj_verts_list, human_mesh_faces_list, obj_mesh_faces_list, dest_out_vid_path
 
 def run_train(opt, device):
+    if opt.use_dynamic_sdf and not opt.use_object_keypoints:
+        raise ValueError("--use_dynamic_sdf requires --use_object_keypoints.")
+    if opt.use_dynamic_sdf and opt.use_local_sdf:
+        raise ValueError("Do not combine --use_dynamic_sdf with legacy --use_local_sdf.")
+    if opt.use_sdf_contrastive and not opt.use_dynamic_sdf:
+        raise ValueError("--use_sdf_contrastive requires --use_dynamic_sdf.")
+
     # Prepare Directories
     save_dir = Path(opt.save_dir)
     wdir = save_dir / 'weights'
@@ -3535,12 +3636,15 @@ def run_train(opt, device):
         diffusion_model,
         train_batch_size=opt.batch_size, # 32
         train_lr=opt.learning_rate, # 1e-4
-        train_num_steps=400000,         # 700000, total training steps
+        train_num_steps=opt.train_num_steps,
         gradient_accumulate_every=2,    # gradient accumulation steps
         ema_decay=0.995,                # exponential moving average decay
         amp=True,                        # turn on mixed precision
+        save_and_sample_every=opt.save_and_sample_every,
         results_folder=str(wdir),
     )
+    if opt.finetune_model:
+        trainer.load_for_finetune(opt.finetune_model)
     trainer.train()
 
     torch.cuda.empty_cache()
@@ -3597,6 +3701,7 @@ def parse_opt():
     parser.add_argument('--exp_name', default='chois', help='save to project/name')
 
     parser.add_argument('--device', default='0', help='cuda device')
+    parser.add_argument('--seed', type=int, default=1, help='random seed recorded in opt.yaml')
 
     parser.add_argument('--window', type=int, default=120, help='horizon')
 
@@ -3604,6 +3709,18 @@ def parse_opt():
     parser.add_argument('--learning_rate', type=float, default=2e-4, help='generator_learning_rate')
 
     parser.add_argument('--pretrained_model', type=str, default="", help='checkpoint')
+    parser.add_argument(
+        '--finetune_model', type=str, default="",
+        help='Load model/EMA weights for training, reset step to zero, and keep a fresh optimiser state.',
+    )
+    parser.add_argument(
+        '--train_num_steps', type=int, default=400000,
+        help='Number of optimisation steps; use 20000 for the E1/E2 screening runs.',
+    )
+    parser.add_argument(
+        '--save_and_sample_every', type=int, default=40000,
+        help='Checkpoint/sample interval in optimisation steps.',
+    )
 
     parser.add_argument('--data_root_folder', type=str, default="", help='data root folder')
 
@@ -3658,6 +3775,19 @@ def parse_opt():
     parser.add_argument("--use_local_sdf", action="store_true", default=False,
                         help="Use local SDF volumes for SDF-enhanced GAPA attention")
 
+    # Dynamic SDF supervision. This path derives query locations from predicted
+    # hands and object poses inside p_losses; it never conditions the denoiser
+    # on GT future-hand trajectories.
+    parser.add_argument("--use_dynamic_sdf", action="store_true", default=False)
+    parser.add_argument('--loss_w_sdf', type=float, default=1.0)
+    parser.add_argument('--sdf_penetration_weight', type=float, default=1.0)
+    parser.add_argument('--sdf_contact_weight', type=float, default=1.0)
+    parser.add_argument("--use_sdf_contrastive", action="store_true", default=False)
+    parser.add_argument('--loss_w_sdf_contrastive', type=float, default=1.0)
+    parser.add_argument('--sdf_contrast_margin', type=float, default=0.02)
+    parser.add_argument('--sdf_penetration_value', type=float, default=-0.03)
+    parser.add_argument('--sdf_floating_value', type=float, default=0.10)
+
     parser.add_argument("--test_unseen_objects", action="store_true")
 
 
@@ -3666,6 +3796,7 @@ def parse_opt():
 
 if __name__ == "__main__":
     opt = parse_opt()
+    set_experiment_seed(opt.seed)
     opt.save_dir = os.path.join(opt.project, opt.exp_name)
     opt.exp_name = opt.save_dir.split('/')[-1]
     device = torch.device(f"cuda:{opt.device}" if torch.cuda.is_available() else "cpu")

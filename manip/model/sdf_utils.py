@@ -2,7 +2,8 @@
 SDF (Signed Distance Field) utility functions for MaMi-HOI.
 
 Provides batched, differentiable SDF queries on precomputed local SDF volumes,
-gradient computation via finite differences, and hand contact point extraction.
+gradient computation via finite differences, hand contact point extraction, and
+the dynamic object-SDF losses used by the lightweight experiment pipeline.
 
 All functions are pure (no nn.Module) and designed to work with
 F.grid_sample on 3D volumetric SDF grids.
@@ -129,3 +130,168 @@ def extract_contact_points(jpos, hand_joints=None):
     if hand_joints is None:
         hand_joints = [20, 21, 22, 23]
     return jpos[:, :, hand_joints, :]
+
+
+def world_to_object_points(points_world, object_rot_mat, object_com_pos):
+    """Transform world-space points into the object's canonical coordinate frame.
+
+    Args:
+        points_world: [B, T, K, 3].
+        object_rot_mat: [B, T, 3, 3], mapping object-local column vectors to
+            world-space column vectors.
+        object_com_pos: [B, T, 3].
+
+    Returns:
+        points_object: [B, T, K, 3].
+
+    Notes:
+        This is intentionally separate from the legacy ``origin/voxel_size``
+        query path above. Dynamic training uses explicit ``centroid/extents``
+        metadata to avoid the old coordinate-convention ambiguity.
+    """
+    if points_world.ndim != 4 or points_world.shape[-1] != 3:
+        raise ValueError(f"points_world must be [B, T, K, 3], got {points_world.shape}")
+    if object_rot_mat.shape[-2:] != (3, 3):
+        raise ValueError(f"object_rot_mat must end in [3, 3], got {object_rot_mat.shape}")
+    if object_com_pos.shape[-1] != 3:
+        raise ValueError(f"object_com_pos must end in 3, got {object_com_pos.shape}")
+
+    # For row-vector points, (p_world - t)^T R equals R^T (p_world - t)
+    # in the conventional column-vector notation.
+    relative_points = points_world - object_com_pos[:, :, None, :]
+    return torch.matmul(relative_points, object_rot_mat)
+
+
+def sample_object_sdf_at_points(sdf_grid, query_points_object, centroid, extents):
+    """Differentiably query canonical object SDFs at object-local points.
+
+    The metadata convention matches the original MaMi-HOI evaluator:
+    ``centroid`` is the centre of the SDF bounding box, ``extents`` contains
+    its three full side lengths, and stored SDF values are normalized by half
+    of the largest extent. The return value is therefore in world units.
+
+    Args:
+        sdf_grid: [B, 1, D, H, W].
+        query_points_object: [B, N, 3] in canonical object coordinates.
+        centroid: [B, 3].
+        extents: [B, 3].
+
+    Returns:
+        signed_distances: [B, N, 1] in world units.
+    """
+    if sdf_grid.ndim != 5 or sdf_grid.shape[1] != 1:
+        raise ValueError(f"sdf_grid must be [B, 1, D, H, W], got {sdf_grid.shape}")
+    if query_points_object.ndim != 3 or query_points_object.shape[-1] != 3:
+        raise ValueError(
+            "query_points_object must be [B, N, 3], "
+            f"got {query_points_object.shape}"
+        )
+    if centroid.shape != (sdf_grid.shape[0], 3):
+        raise ValueError(f"centroid must be [B, 3], got {centroid.shape}")
+    if extents.shape != (sdf_grid.shape[0], 3):
+        raise ValueError(f"extents must be [B, 3], got {extents.shape}")
+
+    max_extent = extents.max(dim=-1, keepdim=True).values.clamp_min(1e-6)
+    query_norm = (query_points_object - centroid[:, None, :]) * 2.0 / max_extent[:, None, :]
+    # PyTorch 3D grid_sample expects coordinates in W/H/D order.
+    query_norm = query_norm[..., [2, 1, 0]]
+    query_grid = query_norm[:, None, None, :, :]
+
+    sampled = F.grid_sample(
+        sdf_grid,
+        query_grid,
+        mode='bilinear',
+        padding_mode='border',
+        align_corners=True,
+    )
+    sampled = sampled.squeeze(2).squeeze(2).permute(0, 2, 1)
+    return sampled * (max_extent[:, None, :] / 2.0)
+
+
+def masked_mean(values, mask, eps=1e-8):
+    """Mean over a broadcastable mask, returning zero for an empty mask."""
+    mask = mask.to(dtype=values.dtype)
+    while mask.ndim < values.ndim:
+        mask = mask.unsqueeze(-1)
+    expanded_mask = mask.expand_as(values)
+    denominator = expanded_mask.sum()
+    if denominator.detach().item() == 0:
+        return values.new_zeros(())
+    return (values * expanded_mask).sum() / denominator.clamp_min(eps)
+
+
+def sdf_contact_losses(pred_sdf_normalized, contact_mask, valid_mask):
+    """Return penetration and surface-contact losses for dynamic SDF queries.
+
+    ``pred_sdf_normalized`` is signed distance divided by the object's largest
+    bounding-box extent. Penetration is penalised on every valid frame, while
+    attraction to the surface is only applied at labelled hand-contact frames.
+    """
+    penetration_loss = masked_mean(F.relu(-pred_sdf_normalized), valid_mask)
+    contact_loss = masked_mean(pred_sdf_normalized.abs(), valid_mask * contact_mask)
+    return penetration_loss, contact_loss
+
+
+def _masked_smooth_l1_per_sample(prediction, target, mask, beta=0.02, eps=1e-8):
+    """Contact-masked Smooth-L1 distance for every batch element."""
+    if prediction.shape != target.shape:
+        raise ValueError(f"prediction and target shapes differ: {prediction.shape} vs {target.shape}")
+    mask = mask.to(dtype=prediction.dtype)
+    while mask.ndim < prediction.ndim:
+        mask = mask.unsqueeze(-1)
+    mask = mask.expand_as(prediction)
+    distance = F.smooth_l1_loss(prediction, target, reduction='none', beta=beta)
+    reduce_dims = tuple(range(1, distance.ndim))
+    numerator = (distance * mask).sum(dim=reduce_dims)
+    denominator = mask.sum(dim=reduce_dims)
+    return numerator / denominator.clamp_min(eps), denominator > 0
+
+
+def sdf_trajectory_ranking_loss(
+    pred_sdf_normalized,
+    gt_sdf_normalized,
+    contact_mask,
+    valid_mask,
+    penetration_value=-0.03,
+    floating_value=0.10,
+    margin=0.02,
+):
+    """Lightweight contrastive ranking on signed-distance trajectories.
+
+    The predicted trajectory is pulled closer to the GT trajectory than to two
+    synthetic but physically implausible contact trajectories: one inside the
+    object and one floating away from its surface. No encoder, batch negatives,
+    or temperature parameter is required.
+    """
+    if pred_sdf_normalized.shape != gt_sdf_normalized.shape:
+        raise ValueError(
+            "pred_sdf_normalized and gt_sdf_normalized must share shape, got "
+            f"{pred_sdf_normalized.shape} and {gt_sdf_normalized.shape}"
+        )
+
+    contact_valid_mask = valid_mask * contact_mask
+    penetration_target = torch.where(
+        contact_valid_mask.bool(),
+        torch.full_like(gt_sdf_normalized, penetration_value),
+        gt_sdf_normalized,
+    )
+    floating_target = torch.where(
+        contact_valid_mask.bool(),
+        torch.full_like(gt_sdf_normalized, floating_value),
+        gt_sdf_normalized,
+    )
+
+    d_pos, has_contact = _masked_smooth_l1_per_sample(
+        pred_sdf_normalized, gt_sdf_normalized, contact_valid_mask
+    )
+    d_pen, _ = _masked_smooth_l1_per_sample(
+        pred_sdf_normalized, penetration_target, contact_valid_mask
+    )
+    d_float, _ = _masked_smooth_l1_per_sample(
+        pred_sdf_normalized, floating_target, contact_valid_mask
+    )
+
+    ranking = F.relu(margin + d_pos - d_pen) + F.relu(margin + d_pos - d_float)
+    if not has_contact.any():
+        return pred_sdf_normalized.new_zeros(())
+    return ranking[has_contact].mean()

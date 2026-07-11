@@ -127,6 +127,7 @@ class CanoObjectTrajDataset(Dataset):
         use_random_frame_bps=False,
         use_object_keypoints=False,
         use_local_sdf=False,
+        use_dynamic_sdf=False,
     ):
         self.train = train
 
@@ -144,6 +145,13 @@ class CanoObjectTrajDataset(Dataset):
         self.use_object_keypoints = use_object_keypoints
 
         self.use_local_sdf = use_local_sdf
+        self.use_dynamic_sdf = use_dynamic_sdf
+        if self.use_local_sdf and self.use_dynamic_sdf:
+            raise ValueError(
+                "use_local_sdf and use_dynamic_sdf cannot be enabled together. "
+                "The former uses legacy GT hand query points; the latter uses "
+                "predicted dynamic hand queries."
+            )
 
         self.parents = get_smpl_parents() # 24/22
 
@@ -153,6 +161,12 @@ class CanoObjectTrajDataset(Dataset):
         # Local SDF data folder for SDF-enhanced GAPA (Experiment 1)
         if self.use_local_sdf:
             self.local_sdf_folder = os.path.join(self.data_root_folder, "local_sdf_patches")
+
+        # One canonical SDF is shared by all sequences of an object. It contains
+        # no hand trajectory and is therefore safe for dynamic model queries.
+        if self.use_dynamic_sdf:
+            self.object_sdf_folder = os.path.join(self.data_root_folder, "object_sdf_64")
+            self.object_sdf_cache = {}
 
         self.rest_object_geo_folder = os.path.join(self.data_root_folder, "rest_object_geo")
         if not os.path.exists(self.rest_object_geo_folder):
@@ -851,6 +865,38 @@ class CanoObjectTrajDataset(Dataset):
 
         return transformed_obj_nn_pts
 
+    def load_dynamic_object_sdf(self, object_name):
+        """Load one canonical object SDF and keep a per-worker CPU cache."""
+        if object_name in self.object_sdf_cache:
+            return self.object_sdf_cache[object_name]
+
+        sdf_path = os.path.join(self.object_sdf_folder, f"{object_name}.pt")
+        if not os.path.exists(sdf_path):
+            raise FileNotFoundError(
+                f"Dynamic SDF file is missing: {sdf_path}. Run "
+                "scripts/prepare_object_sdf64.py before training."
+            )
+        sdf_data = torch.load(sdf_path, map_location="cpu")
+        required_keys = {"sdf_grid", "centroid", "extents"}
+        missing = required_keys.difference(sdf_data.keys())
+        if missing:
+            raise KeyError(f"{sdf_path} is missing keys: {sorted(missing)}")
+
+        sdf_grid = sdf_data["sdf_grid"].float()
+        centroid = sdf_data["centroid"].float()
+        extents = sdf_data["extents"].float()
+        if sdf_grid.ndim != 4 or sdf_grid.shape[0] != 1:
+            raise ValueError(f"{sdf_path} sdf_grid must be [1,D,H,W], got {sdf_grid.shape}")
+        if centroid.shape != (3,) or extents.shape != (3,):
+            raise ValueError(
+                f"{sdf_path} centroid/extents must be [3], got "
+                f"{centroid.shape}/{extents.shape}"
+            )
+
+        result = {"sdf_grid": sdf_grid, "centroid": centroid, "extents": extents}
+        self.object_sdf_cache[object_name] = result
+        return result
+
     def __getitem__(self, index):
         # index = 0 # For debug
         data_input = self.window_data_dict[index]['motion'] # [85, 276]
@@ -1017,6 +1063,12 @@ class CanoObjectTrajDataset(Dataset):
         if self.use_object_keypoints:
             data_input_dict['ori_obj_keypoints'] = paded_transformed_obj_nn_pts # T X K X 3
             data_input_dict['rest_pose_obj_pts'] = rest_pose_obj_nn_pts # K X 3
+
+        if self.use_dynamic_sdf:
+            dynamic_sdf_data = self.load_dynamic_object_sdf(object_name)
+            data_input_dict['object_sdf_grid'] = dynamic_sdf_data['sdf_grid']
+            data_input_dict['object_sdf_centroid'] = dynamic_sdf_data['centroid']
+            data_input_dict['object_sdf_extents'] = dynamic_sdf_data['extents']
 
         # Load local SDF data for SDF-enhanced GAPA (Experiment 1)
         if self.use_local_sdf:

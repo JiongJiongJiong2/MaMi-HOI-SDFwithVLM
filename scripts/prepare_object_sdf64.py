@@ -80,13 +80,38 @@ def main():
         if "centroid" not in metadata or "extents" not in metadata:
             raise KeyError(f"{metadata_path} must contain centroid and extents")
 
-        sdf_grid = downsample_sdf(np.load(sdf_path), args.resolution)
+        source_sdf = np.load(sdf_path)
+        if source_sdf.shape != (256, 256, 256):
+            raise ValueError(
+                f"{sdf_path} must be a 256^3 source SDF, got {source_sdf.shape}"
+            )
+        if not np.isfinite(source_sdf).all():
+            raise ValueError(f"{sdf_path} contains NaN or Inf")
+        centroid = torch.tensor(metadata["centroid"], dtype=torch.float32)
+        extents = torch.tensor(metadata["extents"], dtype=torch.float32)
+        if centroid.shape != (3,) or extents.shape != (3,):
+            raise ValueError(
+                f"{metadata_path} centroid/extents must both have length 3"
+            )
+        if not torch.isfinite(centroid).all() or not torch.isfinite(extents).all():
+            raise ValueError(f"{metadata_path} centroid/extents contains NaN or Inf")
+        if (extents <= 0).any():
+            raise ValueError(f"{metadata_path} extents must be strictly positive")
+
+        sdf_grid = downsample_sdf(source_sdf, args.resolution)
         payload = {
             "sdf_grid": sdf_grid,  # [1, R, R, R], normalized SDF samples
-            "centroid": torch.tensor(metadata["centroid"], dtype=torch.float32),
-            "extents": torch.tensor(metadata["extents"], dtype=torch.float32),
+            "centroid": centroid,
+            "extents": extents,
             "source_sdf": str(sdf_path.name),
+            "source_resolution": 256,
             "resolution": args.resolution,
+            "axis_order": "D(z),H(y),W(x)",
+            "centroid_definition": "canonical mesh bounding-box centre",
+            "extents_definition": "canonical mesh full side lengths",
+            "sdf_sign_convention": "negative-inside, positive-outside",
+            "sdf_value_units": "normalized by max(extents)/2",
+            "align_corners": True,
         }
         torch.save(payload, output_path)
         written += 1

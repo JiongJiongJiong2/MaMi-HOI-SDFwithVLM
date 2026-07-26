@@ -24,6 +24,9 @@ from manip.lafan1.utils import rotate_at_frame_w_obj_global, rotate_at_frame_w_o
 from manip.model.sdf_utils import (
     sample_sdf_at_points,
     compute_sdf_gradients_fd,
+    build_dynamic_sdf_prediction_query,
+    masked_mean,
+    rotation_validity_statistics,
     world_to_object_points,
     sample_object_sdf_at_points,
     sdf_contact_losses,
@@ -408,6 +411,11 @@ class ObjectCondGaussianDiffusion(nn.Module):
         self.sdf_contrast_margin = getattr(opt, 'sdf_contrast_margin', 0.02)
         self.sdf_penetration_value = getattr(opt, 'sdf_penetration_value', -0.03)
         self.sdf_floating_value = getattr(opt, 'sdf_floating_value', 0.10)
+        self.dynamic_sdf_diagnostics = getattr(
+            opt, 'dynamic_sdf_diagnostics', False
+        )
+        self.last_dynamic_sdf_stats = {}
+        self.last_dynamic_sdf_grad_stats = {}
 
         obj_feats_dim = 256
         d_input_feats = 2*d_feats+obj_feats_dim # 440 + 256
@@ -1410,32 +1418,58 @@ class ObjectCondGaussianDiffusion(nn.Module):
         loss*. They are never passed to the denoiser as conditioning input.
         """
         bs, num_steps, num_hands, _ = pred_palm_world.shape
-        pred_palm_object = world_to_object_points(
-            pred_palm_world, pred_obj_rot_mat, pred_obj_com_pos
+        raw_ortho_error, raw_determinant = rotation_validity_statistics(
+            pred_obj_rot_mat
+        )
+        pred_palm_object, pred_obj_rot_for_query = (
+            build_dynamic_sdf_prediction_query(
+                pred_palm_world,
+                pred_obj_rot_mat,
+                pred_obj_com_pos,
+            )
+        )
+        projected_ortho_error, projected_determinant = (
+            rotation_validity_statistics(pred_obj_rot_for_query)
         )
         gt_palm_object = world_to_object_points(
             gt_palm_world, gt_obj_rot_mat, gt_obj_com_pos
         )
 
-        pred_sdf = sample_object_sdf_at_points(
+        pred_sdf, pred_in_bounds = sample_object_sdf_at_points(
             object_sdf_grid.float(),
             pred_palm_object.reshape(bs, num_steps * num_hands, 3).float(),
             object_sdf_centroid.float(),
             object_sdf_extents.float(),
-        ).reshape(bs, num_steps, num_hands)
-        gt_sdf = sample_object_sdf_at_points(
+            return_valid_mask=True,
+        )
+        pred_sdf = pred_sdf.reshape(bs, num_steps, num_hands)
+        pred_in_bounds = pred_in_bounds.reshape(bs, num_steps, num_hands)
+        gt_sdf, gt_in_bounds = sample_object_sdf_at_points(
             object_sdf_grid.float(),
             gt_palm_object.reshape(bs, num_steps * num_hands, 3).float(),
             object_sdf_centroid.float(),
             object_sdf_extents.float(),
-        ).reshape(bs, num_steps, num_hands)
+            return_valid_mask=True,
+        )
+        gt_sdf = gt_sdf.reshape(bs, num_steps, num_hands)
+        gt_in_bounds = gt_in_bounds.reshape(bs, num_steps, num_hands)
 
         object_scale = object_sdf_extents.max(dim=-1).values[:, None, None].clamp_min(1e-6)
         pred_sdf_normalized = pred_sdf / object_scale
         gt_sdf_normalized = gt_sdf / object_scale
 
+        temporal_valid_mask = valid_mask.expand_as(pred_sdf_normalized)
+        pred_valid_mask = temporal_valid_mask * pred_in_bounds.to(
+            temporal_valid_mask.dtype
+        )
+        gt_valid_mask = temporal_valid_mask * gt_in_bounds.to(
+            temporal_valid_mask.dtype
+        )
+        ranking_valid_mask = pred_valid_mask * gt_in_bounds.to(
+            pred_valid_mask.dtype
+        )
         loss_penetration, loss_contact = sdf_contact_losses(
-            pred_sdf_normalized, contact_mask, valid_mask
+            pred_sdf_normalized, contact_mask, pred_valid_mask
         )
         loss_sdf = (
             self.sdf_penetration_weight * loss_penetration
@@ -1446,7 +1480,7 @@ class ObjectCondGaussianDiffusion(nn.Module):
                 pred_sdf_normalized,
                 gt_sdf_normalized,
                 contact_mask,
-                valid_mask,
+                ranking_valid_mask,
                 penetration_value=self.sdf_penetration_value,
                 floating_value=self.sdf_floating_value,
                 margin=self.sdf_contrast_margin,
@@ -1454,12 +1488,57 @@ class ObjectCondGaussianDiffusion(nn.Module):
         else:
             loss_contrastive = loss_sdf.new_zeros(())
 
+        contact_valid = temporal_valid_mask * contact_mask
+        noncontact_valid = temporal_valid_mask * (1.0 - contact_mask)
         stats = {
             'loss_penetration': loss_penetration.detach(),
             'loss_contact': loss_contact.detach(),
-            'pred_sdf_abs_mean': pred_sdf_normalized.detach().abs().mean(),
-            'gt_sdf_abs_mean': gt_sdf_normalized.detach().abs().mean(),
+            'pred_sdf_abs_mean': masked_mean(
+                pred_sdf_normalized.detach().abs(), pred_valid_mask
+            ),
+            'gt_sdf_abs_mean': masked_mean(
+                gt_sdf_normalized.detach().abs(), gt_valid_mask
+            ),
+            'pred_query_oob_rate': masked_mean(
+                (~pred_in_bounds).to(pred_sdf.dtype), temporal_valid_mask
+            ).detach(),
+            'gt_contact_query_oob_rate': masked_mean(
+                (~gt_in_bounds).to(gt_sdf.dtype), contact_valid
+            ).detach(),
+            'gt_noncontact_query_oob_rate': masked_mean(
+                (~gt_in_bounds).to(gt_sdf.dtype), noncontact_valid
+            ).detach(),
+            'pred_query_count': temporal_valid_mask.detach().sum(),
+            'gt_contact_query_count': contact_valid.detach().sum(),
+            'gt_noncontact_query_count': noncontact_valid.detach().sum(),
+            'rotation_orthogonality_error_pre_mean': raw_ortho_error.detach().mean(),
+            'rotation_orthogonality_error_pre_max': raw_ortho_error.detach().max(),
+            'rotation_determinant_pre_mean': raw_determinant.detach().mean(),
+            'rotation_orthogonality_error_post_max': projected_ortho_error.detach().max(),
+            'rotation_determinant_post_min': projected_determinant.detach().min(),
         }
+        self.last_dynamic_sdf_stats = stats
+        if self.dynamic_sdf_diagnostics and torch.is_grad_enabled():
+            self.last_dynamic_sdf_grad_stats = {}
+
+            def record_gradient(name):
+                def hook(gradient):
+                    self.last_dynamic_sdf_grad_stats[name] = {
+                        'finite': bool(torch.isfinite(gradient).all().item()),
+                        'norm': float(gradient.detach().norm().item()),
+                    }
+                return hook
+
+            if pred_palm_world.requires_grad:
+                pred_palm_world.register_hook(record_gradient('pred_palm_world'))
+            if pred_obj_rot_for_query.requires_grad:
+                pred_obj_rot_for_query.register_hook(
+                    record_gradient('pred_object_rotation_query')
+                )
+            if pred_obj_com_pos.requires_grad:
+                pred_obj_com_pos.register_hook(
+                    record_gradient('pred_object_translation')
+                )
         return loss_sdf, loss_contrastive, stats
 
     def p_losses(self, x_start, x_cond, t, language_embedding=None, noise=None, \

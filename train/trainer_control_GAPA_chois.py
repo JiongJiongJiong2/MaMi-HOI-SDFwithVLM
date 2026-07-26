@@ -1,10 +1,14 @@
 import argparse
+import hashlib
 import os
 import numpy as np
 import yaml
 import random
 import json
 import copy
+import shlex
+import subprocess
+import time
 import os
 os.environ["WANDB_MODE"]="offline"
 import trimesh
@@ -31,6 +35,12 @@ from manip.data.long_cano_traj_dataset import LongCanoObjectTrajDataset
 from manip.data.unseen_obj_long_cano_traj_dataset import UnseenCanoObjectTrajDataset
 
 from manip.model.transformer_control_GAPA_motion_cond_diffusion import ObjectCondGaussianDiffusion
+from manip.model.sdf_utils import (
+    build_dynamic_sdf_prediction_query,
+    object_sdf_in_bounds_mask,
+    rotation_validity_statistics,
+    world_to_object_points,
+)
 
 from manip.vis.blender_vis_mesh_motion import run_blender_rendering_and_save2video, save_verts_faces_to_mesh_file_w_object
 
@@ -53,6 +63,180 @@ def set_experiment_seed(seed):
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.benchmark = False
+
+
+def sha256_file(path, chunk_size=1024 * 1024):
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        while True:
+            chunk = handle.read(chunk_size)
+            if not chunk:
+                break
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def scalarize_tensor_dict(values):
+    result = {}
+    for key, value in values.items():
+        if torch.is_tensor(value):
+            if value.numel() != 1:
+                continue
+            result[key] = float(value.detach().cpu().item())
+        elif isinstance(value, (int, float, bool, str)):
+            result[key] = value
+    return result
+
+
+def mean_positive_finite(values):
+    numeric_values = []
+    for value in values or []:
+        numeric = float(np.asarray(value).mean())
+        if np.isfinite(numeric) and numeric > 0:
+            numeric_values.append(numeric)
+    return (
+        float(np.mean(numeric_values)) if numeric_values else 0.0,
+        len(numeric_values),
+    )
+
+
+def dynamic_sdf_oob_statistics(
+    pred_palm_world,
+    pred_object_rotation,
+    pred_object_com,
+    gt_palm_world,
+    gt_object_rotation,
+    gt_object_com,
+    centroid,
+    extents,
+    contact_labels,
+    sequence_length,
+):
+    """Compute held-out U1 query validity without using SDF border values."""
+    pred_palm_world = pred_palm_world[None]
+    pred_object_rotation = pred_object_rotation[None]
+    pred_object_com = pred_object_com[None]
+    gt_palm_world = gt_palm_world[None]
+    gt_object_rotation = gt_object_rotation[None]
+    gt_object_com = gt_object_com[None]
+    device = pred_palm_world.device
+    centroid = centroid.reshape(1, 3).to(device)
+    extents = extents.reshape(1, 3).to(device)
+
+    pred_query, projected_rotation = build_dynamic_sdf_prediction_query(
+        pred_palm_world,
+        pred_object_rotation,
+        pred_object_com,
+    )
+    gt_query = world_to_object_points(
+        gt_palm_world,
+        gt_object_rotation,
+        gt_object_com,
+    )
+    num_steps, num_hands = pred_query.shape[1:3]
+    pred_valid = object_sdf_in_bounds_mask(
+        pred_query.reshape(1, num_steps * num_hands, 3),
+        centroid,
+        extents,
+    ).reshape(num_steps, num_hands)
+    gt_valid = object_sdf_in_bounds_mask(
+        gt_query.reshape(1, num_steps * num_hands, 3),
+        centroid,
+        extents,
+    ).reshape(num_steps, num_hands)
+    temporal_valid = (
+        torch.arange(num_steps, device=device) < int(sequence_length)
+    )[:, None].expand(num_steps, num_hands)
+    hand_contact = (
+        contact_labels[:num_steps, :num_hands].to(device) > 0.5
+    )
+    gt_contact = temporal_valid & hand_contact
+    gt_noncontact = temporal_valid & ~hand_contact
+
+    raw_ortho, raw_det = rotation_validity_statistics(
+        pred_object_rotation
+    )
+    projected_ortho, projected_det = rotation_validity_statistics(
+        projected_rotation
+    )
+
+    def counts(valid, selected):
+        total = int(selected.sum().item())
+        invalid = int((selected & ~valid).sum().item())
+        return invalid, total, invalid / total if total else 0.0
+
+    pred_invalid, pred_total, pred_rate = counts(pred_valid, temporal_valid)
+    contact_invalid, contact_total, contact_rate = counts(
+        gt_valid, gt_contact
+    )
+    noncontact_invalid, noncontact_total, noncontact_rate = counts(
+        gt_valid, gt_noncontact
+    )
+    return {
+        'pred_query_oob_invalid': pred_invalid,
+        'pred_query_total': pred_total,
+        'pred_query_oob_rate': pred_rate,
+        'gt_contact_query_oob_invalid': contact_invalid,
+        'gt_contact_query_total': contact_total,
+        'gt_contact_query_oob_rate': contact_rate,
+        'gt_noncontact_query_oob_invalid': noncontact_invalid,
+        'gt_noncontact_query_total': noncontact_total,
+        'gt_noncontact_query_oob_rate': noncontact_rate,
+        'rotation_orthogonality_error_pre_mean': float(
+            raw_ortho.mean().item()
+        ),
+        'rotation_orthogonality_error_pre_max': float(raw_ortho.max().item()),
+        'rotation_determinant_pre_mean': float(raw_det.mean().item()),
+        'rotation_orthogonality_error_post_max': float(
+            projected_ortho.max().item()
+        ),
+        'rotation_determinant_post_min': float(projected_det.min().item()),
+    }
+
+
+def write_run_metadata(output_dir, opt, role):
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        git_commit = subprocess.run(
+            ['git', 'rev-parse', 'HEAD'],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        git_status = subprocess.run(
+            ['git', 'status', '--short'],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.splitlines()
+    except (OSError, subprocess.CalledProcessError) as error:
+        git_commit = f"UNAVAILABLE: {error}"
+        git_status = []
+
+    command = shlex.join([sys.executable] + sys.argv)
+    metadata = {
+        'role': role,
+        'command': command,
+        'argv': [sys.executable] + sys.argv,
+        'git_commit': git_commit,
+        'git_status_short': git_status,
+        'seed': int(opt.seed),
+        'guidance': (
+            'on' if opt.use_guidance_in_denoising else 'off'
+        ),
+        'contact_threshold_m': 0.05,
+        'experiment_split_manifest': opt.experiment_split_manifest,
+        'eval_split': opt.eval_split,
+        'pretrained_model': opt.pretrained_model,
+        'finetune_model': opt.finetune_model,
+    }
+    with open(output_dir / 'command.txt', 'w', encoding='utf-8') as handle:
+        handle.write(command + '\n')
+    with open(output_dir / 'git_commit.txt', 'w', encoding='utf-8') as handle:
+        handle.write(git_commit + '\n')
+    with open(output_dir / 'run_manifest.json', 'w', encoding='utf-8') as handle:
+        json.dump(metadata, handle, indent=2, sort_keys=True)
 
 
 def export_to_ply(points, filename='output.ply'):
@@ -222,6 +406,7 @@ class Trainer(object):
 
         self.amp = amp
         self.scaler = GradScaler(enabled=amp)
+        self.finetune_provenance = None
 
         self.results_folder = results_folder
 
@@ -385,6 +570,22 @@ class Trainer(object):
 
     def prep_dataloader(self, window_size):
         # Define dataset
+        allowed_eval_sequences = None
+        if self.opt.experiment_split_manifest:
+            with open(self.opt.experiment_split_manifest, "r", encoding="utf-8") as handle:
+                split_manifest = json.load(handle)
+            split_key = f"{self.opt.eval_split}_sequences"
+            if split_key not in split_manifest:
+                raise KeyError(
+                    f"{self.opt.experiment_split_manifest} is missing {split_key}"
+                )
+            allowed_eval_sequences = split_manifest[split_key]
+            if not allowed_eval_sequences:
+                raise ValueError(f"{split_key} is empty")
+            print(
+                f"Using {len(allowed_eval_sequences)} {self.opt.eval_split} "
+                f"sequence names from {self.opt.experiment_split_manifest}"
+            )
         train_dataset = CanoObjectTrajDataset(train=True, data_root_folder=self.data_root_folder, \
             window=window_size, use_object_splits=self.use_object_split, \
             input_language_condition=self.add_language_condition, \
@@ -398,7 +599,8 @@ class Trainer(object):
             use_random_frame_bps=self.use_random_frame_bps, \
             use_object_keypoints=self.use_object_keypoints, \
             use_local_sdf=self.use_local_sdf, \
-            use_dynamic_sdf=self.use_dynamic_sdf)
+            use_dynamic_sdf=self.use_dynamic_sdf,
+            allowed_sequence_names=allowed_eval_sequences)
 
         self.ds = train_dataset
         self.val_ds = val_dataset
@@ -412,9 +614,14 @@ class Trainer(object):
             'step': self.step,
             'model': self.model.state_dict(),
             'ema': self.ema.state_dict(),
-            'scaler': self.scaler.state_dict()
+            'scaler': self.scaler.state_dict(),
+            'finetune_provenance': self.finetune_provenance,
         }
-        torch.save(data, os.path.join(self.results_folder, 'model-'+str(milestone)+'.pt'))
+        checkpoint_path = os.path.join(
+            self.results_folder, 'model-'+str(milestone)+'.pt'
+        )
+        torch.save(data, checkpoint_path)
+        return checkpoint_path
 
     def load(self, milestone, pretrained_path=None):
         if pretrained_path is None:
@@ -429,12 +636,38 @@ class Trainer(object):
 
     def load_for_finetune(self, checkpoint_path):
         """Load model/EMA weights but reset the step and optimiser state."""
+        if not os.path.isfile(checkpoint_path):
+            raise FileNotFoundError(checkpoint_path)
+        if self.optimizer.state:
+            raise RuntimeError("Fine-tune optimizer is not fresh before checkpoint load")
+        initial_scaler_state = copy.deepcopy(self.scaler.state_dict())
         data = torch.load(checkpoint_path, map_location='cpu')
-        self.model.load_state_dict(data['model'], strict=False)
-        if 'ema' in data:
-            self.ema.load_state_dict(data['ema'], strict=False)
+        missing = {'model', 'ema'}.difference(data)
+        if missing:
+            raise KeyError(
+                f"{checkpoint_path} is missing required fine-tune keys: {sorted(missing)}"
+            )
+        self.model.load_state_dict(data['model'], strict=True)
+        self.ema.load_state_dict(data['ema'], strict=True)
         self.step = 0
-        print(f"Loaded fine-tune weights from {checkpoint_path}; reset training step to 0.")
+        if self.optimizer.state:
+            raise RuntimeError("Baseline optimizer state was unexpectedly loaded")
+        if self.scaler.state_dict() != initial_scaler_state:
+            raise RuntimeError("Baseline scaler state was unexpectedly loaded")
+        self.finetune_provenance = {
+            'checkpoint_path': os.path.abspath(checkpoint_path),
+            'checkpoint_sha256': sha256_file(checkpoint_path),
+            'checkpoint_step': int(data.get('step', -1)),
+            'model_strict_load': True,
+            'ema_strict_load': True,
+            'optimizer_fresh': True,
+            'scaler_fresh': True,
+            'experiment_step': 0,
+        }
+        print(
+            "Loaded baseline model/EMA strictly from "
+            f"{checkpoint_path}; optimizer/scaler are fresh; experiment step=0."
+        )
 
     def prep_start_end_condition_mask_pos_only(self, data, actual_seq_len):
         # data: BS X T X D (3+9)
@@ -494,6 +727,28 @@ class Trainer(object):
 
     def train(self):
         init_step = self.step
+        smoke_started_at = time.perf_counter()
+        smoke_records = []
+        smoke_validation_records = []
+        split_diagnostics_path = (
+            Path(self.results_folder).parent
+            / 'dynamic_sdf_train_validation_stats.jsonl'
+        )
+        if self.use_dynamic_sdf:
+            split_diagnostics_path.write_text('', encoding='utf-8')
+        if self.opt.smoke_test:
+            if not self.use_dynamic_sdf or not self.opt.dynamic_sdf_diagnostics:
+                raise ValueError(
+                    "--smoke_test requires --use_dynamic_sdf and "
+                    "--dynamic_sdf_diagnostics"
+                )
+            if self.finetune_provenance is None:
+                raise ValueError("--smoke_test requires --finetune_model")
+            if init_step != 0 or self.optimizer.state:
+                raise RuntimeError(
+                    "Smoke test must start at experiment step 0 with a fresh optimizer"
+                )
+            torch.cuda.reset_peak_memory_stats()
         for idx in range(init_step, self.train_num_steps):
             self.optimizer.zero_grad()
 
@@ -598,19 +853,63 @@ class Trainer(object):
                     else:
                         loss = loss_diffusion
 
-                    if torch.isnan(loss).item():
-                        print('WARNING: NaN loss. Skipping to next data...')
+                    if not torch.isfinite(loss).item():
+                        message = 'Non-finite total loss'
+                        if self.opt.smoke_test:
+                            raise FloatingPointError(message)
+                        print(f'WARNING: {message}. Skipping to next data...')
                         nan_exists = True
                         torch.cuda.empty_cache()
                         continue
 
                     self.scaler.scale(loss / self.gradient_accumulate_every).backward()
 
+                    if self.use_dynamic_sdf:
+                        dynamic_stats = scalarize_tensor_dict(
+                            self.model.last_dynamic_sdf_stats
+                        )
+                        gradient_stats = copy.deepcopy(
+                            self.model.last_dynamic_sdf_grad_stats
+                        )
+                        if not torch.isfinite(loss_sdf).item():
+                            raise FloatingPointError(
+                                "Dynamic SDF loss is non-finite"
+                            )
+                        if self.opt.smoke_test:
+                            required_gradients = {
+                                'pred_palm_world',
+                                'pred_object_rotation_query',
+                                'pred_object_translation',
+                            }
+                            nonfinite_gradients = sorted(
+                                name for name in required_gradients
+                                if name in gradient_stats
+                                and not gradient_stats[name]['finite']
+                            )
+                            if nonfinite_gradients:
+                                raise FloatingPointError(
+                                    "Non-finite dynamic-query gradients: "
+                                    f"{nonfinite_gradients}"
+                                )
+                            smoke_records.append({
+                                'step': int(idx),
+                                'accumulation': int(i),
+                                'total_loss': float(loss.detach().item()),
+                                'dynamic_sdf_loss': float(
+                                    loss_sdf.detach().item()
+                                ),
+                                'stats': dynamic_stats,
+                                'query_gradients': gradient_stats,
+                            })
+
                     # check gradients
                     parameters = [p for p in self.model.parameters() if p.grad is not None]
                     total_norm = torch.norm(torch.stack([torch.norm(p.grad.detach(), 2.0).to(obj_data.device) for p in parameters]), 2.0)
-                    if torch.isnan(total_norm):
-                        print('WARNING: NaN gradients. Skipping to next data...')
+                    if not torch.isfinite(total_norm):
+                        message = 'Non-finite model gradient norm'
+                        if self.opt.smoke_test:
+                            raise FloatingPointError(message)
+                        print(f'WARNING: {message}. Skipping to next data...')
                         nan_exists = True
                         torch.cuda.empty_cache()
                         continue
@@ -628,6 +927,11 @@ class Trainer(object):
                                 "Train/Loss/Dynamic SDF": loss_sdf.item(),
                                 "Train/Loss/SDF Ranking": loss_sdf_contrastive.item(),
                             }
+                            if self.use_dynamic_sdf:
+                                log_dict.update({
+                                    f"Train/DynamicSDF/{key}": value
+                                    for key, value in dynamic_stats.items()
+                                })
                         else:
                             log_dict = {
                                 "Train/Loss/Total Loss": loss.item(),
@@ -648,6 +952,21 @@ class Trainer(object):
                             print("Object Pts Loss: %.4f" % (loss_obj_pts.item()))
                             print("Dynamic SDF Loss: %.4f" % (loss_sdf.item()))
                             print("SDF Ranking Loss: %.4f" % (loss_sdf_contrastive.item()))
+                            if self.use_dynamic_sdf:
+                                print(
+                                    "Dynamic SDF diagnostics: "
+                                    + json.dumps(dynamic_stats, sort_keys=True)
+                                )
+                                with open(
+                                    split_diagnostics_path,
+                                    'a',
+                                    encoding='utf-8',
+                                ) as handle:
+                                    handle.write(json.dumps({
+                                        'split': 'train',
+                                        'step': int(idx),
+                                        'stats': dynamic_stats,
+                                    }, sort_keys=True) + '\n')
 
             if nan_exists:
                 continue
@@ -757,6 +1076,25 @@ class Trainer(object):
                         self.loss_w_fk * val_loss_fk + self.loss_w_obj_pts * val_loss_obj_pts + \
                         self.loss_w_sdf * val_loss_sdf + \
                         self.loss_w_sdf_contrastive * val_loss_sdf_contrastive
+                    if self.use_dynamic_sdf:
+                        val_dynamic_stats = scalarize_tensor_dict(
+                            self.model.last_dynamic_sdf_stats
+                        )
+                        with open(
+                            split_diagnostics_path,
+                            'a',
+                            encoding='utf-8',
+                        ) as handle:
+                            handle.write(json.dumps({
+                                'split': 'validation',
+                                'step': int(self.step),
+                                'stats': val_dynamic_stats,
+                            }, sort_keys=True) + '\n')
+                        if self.opt.smoke_test:
+                            smoke_validation_records.append({
+                                'step': int(self.step),
+                                'stats': val_dynamic_stats,
+                            })
 
                     if self.use_wandb:
                         val_log_dict = {
@@ -770,6 +1108,11 @@ class Trainer(object):
                             "Validation/Loss/Dynamic SDF": val_loss_sdf.item(),
                             "Validation/Loss/SDF Ranking": val_loss_sdf_contrastive.item(),
                         }
+                        if self.use_dynamic_sdf:
+                            val_log_dict.update({
+                                f"Validation/DynamicSDF/{key}": value
+                                for key, value in val_dynamic_stats.items()
+                            })
 
                         wandb.log(val_log_dict)
 
@@ -803,8 +1146,109 @@ class Trainer(object):
         # The loop increments self.step after the periodic-save condition, so a
         # short run ending exactly at SAVE_EVERY would otherwise have no final
         # checkpoint. Always keep an explicit final checkpoint for E1/E2.
-        self.save(f'final-{self.step}')
+        final_checkpoint_path = self.save(f'final-{self.step}')
         print(f'training complete; saved final checkpoint at step {self.step}')
+
+        if self.opt.smoke_test:
+            smoke_errors = []
+            if self.step != self.train_num_steps:
+                smoke_errors.append(
+                    f"completed step {self.step}, expected {self.train_num_steps}"
+                )
+            if not smoke_records:
+                smoke_errors.append("no dynamic-SDF diagnostic records were captured")
+            if smoke_records and not any(
+                abs(record['dynamic_sdf_loss']) > 1e-12
+                for record in smoke_records
+            ):
+                smoke_errors.append("dynamic SDF loss was identically zero")
+            required_gradients = {
+                'pred_palm_world',
+                'pred_object_rotation_query',
+                'pred_object_translation',
+            }
+            seen_gradients = {
+                name
+                for record in smoke_records
+                for name in record['query_gradients']
+            }
+            missing_gradients = required_gradients.difference(seen_gradients)
+            if missing_gradients:
+                smoke_errors.append(
+                    "query gradients were never observed for "
+                    f"{sorted(missing_gradients)}"
+                )
+
+            reload_verified = False
+            try:
+                reloaded = torch.load(final_checkpoint_path, map_location='cpu')
+                required = {'step', 'model', 'ema', 'scaler'}
+                missing = required.difference(reloaded)
+                if missing:
+                    raise KeyError(f"missing checkpoint keys: {sorted(missing)}")
+                self.model.load_state_dict(reloaded['model'], strict=True)
+                self.ema.load_state_dict(reloaded['ema'], strict=True)
+                self.scaler.load_state_dict(reloaded['scaler'])
+                if int(reloaded['step']) != self.step:
+                    raise ValueError(
+                        f"reloaded step {reloaded['step']} != {self.step}"
+                    )
+                reload_verified = True
+            except Exception as error:
+                smoke_errors.append(f"checkpoint reload failed: {error}")
+
+            elapsed_seconds = time.perf_counter() - smoke_started_at
+            report = {
+                'status': 'PASS' if not smoke_errors else 'FAIL',
+                'errors': smoke_errors,
+                'finetune_provenance': self.finetune_provenance,
+                'train_num_steps': int(self.train_num_steps),
+                'completed_steps': int(self.step),
+                'total_loss_finite': all(
+                    np.isfinite(record['total_loss']) for record in smoke_records
+                ),
+                'dynamic_sdf_loss_finite': all(
+                    np.isfinite(record['dynamic_sdf_loss'])
+                    for record in smoke_records
+                ),
+                'dynamic_sdf_loss_nonzero': any(
+                    abs(record['dynamic_sdf_loss']) > 1e-12
+                    for record in smoke_records
+                ),
+                'query_gradients_finite': all(
+                    gradient['finite']
+                    for record in smoke_records
+                    for gradient in record['query_gradients'].values()
+                ) and not missing_gradients,
+                'elapsed_seconds': elapsed_seconds,
+                'throughput_steps_per_second': (
+                    self.step / elapsed_seconds if elapsed_seconds > 0 else None
+                ),
+                'peak_gpu_memory_bytes': int(
+                    torch.cuda.max_memory_allocated()
+                ),
+                'checkpoint_path': os.path.abspath(final_checkpoint_path),
+                'checkpoint_reload_verified': reload_verified,
+                'diagnostic_record_count': len(smoke_records),
+                'validation_diagnostics': smoke_validation_records,
+            }
+            report_path = (
+                Path(self.results_folder).parent / 'smoke_test_report.json'
+            )
+            records_path = (
+                Path(self.results_folder).parent
+                / 'dynamic_sdf_diagnostics.jsonl'
+            )
+            with open(records_path, 'w', encoding='utf-8') as handle:
+                for record in smoke_records:
+                    handle.write(json.dumps(record, sort_keys=True) + '\n')
+            with open(report_path, 'w', encoding='utf-8') as handle:
+                json.dump(report, handle, indent=2, sort_keys=True)
+            print(f"Smoke report: {report_path}")
+            if smoke_errors:
+                raise RuntimeError(
+                    "U1 smoke test failed: " + "; ".join(smoke_errors)
+                )
 
         if self.use_wandb:
             wandb.run.finish()
@@ -858,7 +1302,8 @@ class Trainer(object):
                 gt_penetration_score_list, penetration_score_list, \
                 gt_hand_penetration_score_list, hand_penetration_score_list, \
                 gt_floor_height_list, pred_floor_height_list, \
-                dest_metric_folder, seq_name=None):
+                dest_metric_folder, seq_name=None, \
+                gt_d_hand_list=None, pred_d_hand_list=None):
 
         mean_lhand_jpe = np.asarray(lhand_jpe_list).mean()
         mean_rhand_jpe = np.asarray(rhand_jpe_list).mean()
@@ -894,6 +1339,12 @@ class Trainer(object):
 
         mean_gt_floor_height = np.asarray(gt_floor_height_list).mean()
         mean_pred_floor_height = np.asarray(pred_floor_height_list).mean()
+        mean_gt_d_hand, valid_gt_d_hand_count = mean_positive_finite(
+            gt_d_hand_list
+        )
+        mean_pred_d_hand, valid_pred_d_hand_count = mean_positive_finite(
+            pred_d_hand_list
+        )
 
         print("The number of sequences: {0}".format(len(mpjpe_list)))
         print("*********************************Human Motion Evaluation**************************************")
@@ -962,6 +1413,10 @@ class Trainer(object):
 
         metric_dict['mean_hand_penetration_score'] = mean_hand_penetration_score
         metric_dict['mean_gt_hand_penetration_score'] = mean_gt_hand_penetration_score
+        metric_dict['mean_gt_d_hand_mm'] = mean_gt_d_hand
+        metric_dict['mean_pred_d_hand_mm'] = mean_pred_d_hand
+        metric_dict['valid_gt_d_hand_count'] = valid_gt_d_hand_count
+        metric_dict['valid_pred_d_hand_count'] = valid_pred_d_hand_count
 
         # Convert all to float
         for k in metric_dict:
@@ -1057,10 +1512,13 @@ class Trainer(object):
         else:
             hand_verts = ori_verts_pred
 
-        hand_verts_in_rest_frame = hand_verts - pred_obj_com_pos[:, :, None, :] # BS X T X N_hand X 3
-        hand_verts_in_rest_frame = torch.matmul(pred_obj_rot_mat[:, :, None, :, :].repeat(1, 1, \
-                            hand_verts_in_rest_frame.shape[2], 1, 1), \
-                            hand_verts_in_rest_frame[:, :, :, :, None]).squeeze(-1) # BS X T X N_hand X 3
+        # Dataset geometry uses p_world = R @ p_object + t (column-vector
+        # notation). For row-vector tensors the inverse is (p_world - t) @ R.
+        hand_verts_in_rest_frame = world_to_object_points(
+            hand_verts,
+            pred_obj_rot_mat,
+            pred_obj_com_pos,
+        )
 
         curr_object_sdf, curr_object_sdf_centroid, curr_object_sdf_extents = \
         self.load_object_sdf_data(object_name)
@@ -1220,6 +1678,7 @@ class Trainer(object):
 
         self.all_gt_d_hand_list = []
         self.all_pred_d_hand_list = []
+        self.test_dynamic_sdf_stats = []
 
         for s_idx, val_data_dict in enumerate(test_loader):
 
@@ -1411,6 +1870,22 @@ class Trainer(object):
 
                 self.all_gt_d_hand_list.append(gt_d_hand)
                 self.all_pred_d_hand_list.append(pred_d_hand)
+                if self.use_dynamic_sdf:
+                    heldout_stats = dynamic_sdf_oob_statistics(
+                        pred_human_jnts_list[tmp_s_idx][:, 22:24, :],
+                        pred_obj_rot_mat_list[tmp_s_idx],
+                        pred_obj_com_pos_list[tmp_s_idx],
+                        gt_human_jnts_list[tmp_s_idx][:, 22:24, :],
+                        gt_obj_rot_mat_list[tmp_s_idx],
+                        gt_obj_com_pos_list[tmp_s_idx],
+                        val_data_dict['object_sdf_centroid'][0],
+                        val_data_dict['object_sdf_extents'][0],
+                        val_data_dict['contact_labels'][0],
+                        int(val_data_dict['seq_len'][0].item()),
+                    )
+                    heldout_stats['sequence_name'] = seq_name_list[0]
+                    heldout_stats['split'] = self.opt.eval_split
+                    self.test_dynamic_sdf_stats.append(heldout_stats)
                 # ===========================================
 
                 pred_hand_penetration_score = self.compute_hand_penetration_metric(object_name_list[0], \
@@ -1450,7 +1925,9 @@ class Trainer(object):
                 [gt_penetration_score], [pred_penetration_score], \
                 [gt_hand_penetration_score], [pred_hand_penetration_score], \
                 [gt_floor_height], [pred_floor_height], \
-                dest_metric_folder, curr_seq_name_tag) # Assume batch size = 1
+                dest_metric_folder, curr_seq_name_tag, \
+                gt_d_hand_list=[gt_d_hand], \
+                pred_d_hand_list=[pred_d_hand]) # Assume batch size = 1
 
             torch.cuda.empty_cache()
 
@@ -1476,6 +1953,88 @@ class Trainer(object):
                 print(f"Avg GT Hand-to-Object Surface Dist (D_hand):   {final_avg_gt_d_hand:.2f} mm")
                 print(f"Avg Pred Hand-to-Object Surface Dist (D_hand): {final_avg_pred_d_hand:.2f} mm")
                 print(f"==================================================================\n")
+
+        if self.compute_metrics and self.mpjpe_list:
+            self.print_evaluation_metrics(
+                self.lhand_jpe_list,
+                self.rhand_jpe_list,
+                self.hand_jpe_list,
+                self.mpvpe_list,
+                self.mpjpe_list,
+                self.rot_dist_list,
+                self.trans_err_list,
+                self.gt_contact_percent_list,
+                self.contact_percent_list,
+                self.gt_foot_sliding_jnts_list,
+                self.foot_sliding_jnts_list,
+                self.contact_precision_list,
+                self.contact_recall_list,
+                self.contact_acc_list,
+                self.contact_f1_score_list,
+                self.obj_rot_dist_list,
+                self.obj_com_pos_err_list,
+                self.start_obj_com_pos_err_list,
+                self.end_obj_com_pos_err_list,
+                self.waypoints_xy_pos_err_list,
+                self.gt_penetration_list,
+                self.penetration_list,
+                self.gt_hand_penetration_list,
+                self.hand_penetration_list,
+                self.gt_floor_height_list,
+                self.floor_height_list,
+                dest_metric_folder,
+                gt_d_hand_list=self.all_gt_d_hand_list,
+                pred_d_hand_list=self.all_pred_d_hand_list,
+            )
+        if self.test_dynamic_sdf_stats:
+            aggregate = {'split': self.opt.eval_split}
+            for prefix in (
+                'pred_query',
+                'gt_contact_query',
+                'gt_noncontact_query',
+            ):
+                invalid_key = f'{prefix}_oob_invalid'
+                total_key = f'{prefix}_total'
+                invalid = sum(
+                    record[invalid_key]
+                    for record in self.test_dynamic_sdf_stats
+                )
+                total = sum(
+                    record[total_key]
+                    for record in self.test_dynamic_sdf_stats
+                )
+                aggregate[invalid_key] = invalid
+                aggregate[total_key] = total
+                aggregate[f'{prefix}_oob_rate'] = (
+                    invalid / total if total else 0.0
+                )
+            aggregate['rotation_orthogonality_error_pre_mean'] = float(
+                np.mean([
+                    record['rotation_orthogonality_error_pre_mean']
+                    for record in self.test_dynamic_sdf_stats
+                ])
+            )
+            aggregate['rotation_orthogonality_error_pre_max'] = max(
+                record['rotation_orthogonality_error_pre_max']
+                for record in self.test_dynamic_sdf_stats
+            )
+            aggregate['rotation_orthogonality_error_post_max'] = max(
+                record['rotation_orthogonality_error_post_max']
+                for record in self.test_dynamic_sdf_stats
+            )
+            diagnostic_path = Path(
+                self.save_res_folder
+            ) / f'dynamic_sdf_query_stats_{self.opt.eval_split}.json'
+            with open(diagnostic_path, 'w', encoding='utf-8') as handle:
+                json.dump(
+                    {
+                        'aggregate': aggregate,
+                        'per_sequence': self.test_dynamic_sdf_stats,
+                    },
+                    handle,
+                    indent=2,
+                    sort_keys=True,
+                )
 
     def cond_sample_res_key_finding(self):
         if self.opt.pretrained_model == "":
@@ -3602,6 +4161,19 @@ def run_train(opt, device):
         raise ValueError("Do not combine --use_dynamic_sdf with legacy --use_local_sdf.")
     if opt.use_sdf_contrastive and not opt.use_dynamic_sdf:
         raise ValueError("--use_sdf_contrastive requires --use_dynamic_sdf.")
+    if opt.use_dynamic_sdf and not opt.finetune_model:
+        raise ValueError(
+            "U1 --use_dynamic_sdf requires the frozen U0 checkpoint via "
+            "--finetune_model."
+        )
+    if opt.dynamic_sdf_diagnostics and not opt.use_dynamic_sdf:
+        raise ValueError(
+            "--dynamic_sdf_diagnostics requires --use_dynamic_sdf."
+        )
+    if opt.smoke_test and not 200 <= opt.train_num_steps <= 500:
+        raise ValueError(
+            "Gate-0 smoke tests must use 200-500 optimization steps."
+        )
 
     # Prepare Directories
     save_dir = Path(opt.save_dir)
@@ -3611,6 +4183,7 @@ def run_train(opt, device):
     # Save run settings
     with open(save_dir / 'opt.yaml', 'w') as f:
         yaml.safe_dump(vars(opt), f, sort_keys=True)
+    write_run_metadata(save_dir, opt, role='U1-train')
 
     # Define model
     repr_dim = 3 + 9 # Object relative translation (3) and relative rotation matrix (9)
@@ -3653,6 +4226,11 @@ def run_sample(opt, device):
     # Prepare Directories
     save_dir = Path(opt.save_dir)
     wdir = save_dir / 'weights'
+    metadata_dir = Path(opt.save_res_folder) if opt.save_res_folder else save_dir
+    metadata_dir.mkdir(parents=True, exist_ok=True)
+    with open(metadata_dir / 'opt.yaml', 'w') as f:
+        yaml.safe_dump(vars(opt), f, sort_keys=True)
+    write_run_metadata(metadata_dir, opt, role='U0-or-U1-evaluation')
 
     # Define model
     repr_dim = 3 + 9
@@ -3723,6 +4301,18 @@ def parse_opt():
     )
 
     parser.add_argument('--data_root_folder', type=str, default="", help='data root folder')
+    parser.add_argument(
+        '--experiment_split_manifest',
+        type=str,
+        default="",
+        help='JSON with disjoint validation_sequences and test_sequences.',
+    )
+    parser.add_argument(
+        '--eval_split',
+        choices=('validation', 'test'),
+        default='test',
+        help='Which manifest sequence list to use for the held-out dataset.',
+    )
 
     parser.add_argument('--save_res_folder', type=str, default="", help='save res folder')
 
@@ -3779,6 +4369,18 @@ def parse_opt():
     # hands and object poses inside p_losses; it never conditions the denoiser
     # on GT future-hand trajectories.
     parser.add_argument("--use_dynamic_sdf", action="store_true", default=False)
+    parser.add_argument(
+        "--dynamic_sdf_diagnostics",
+        action="store_true",
+        default=False,
+        help="Record U1 OOB, SO(3), and query-gradient diagnostics.",
+    )
+    parser.add_argument(
+        "--smoke_test",
+        action="store_true",
+        default=False,
+        help="Enable strict U1 smoke assertions and checkpoint reload verification.",
+    )
     parser.add_argument('--loss_w_sdf', type=float, default=1.0)
     parser.add_argument('--sdf_penetration_weight', type=float, default=1.0)
     parser.add_argument('--sdf_contact_weight', type=float, default=1.0)

@@ -21,7 +21,10 @@ from human_body_prior.body_model.body_model import BodyModel
 
 from manip.lafan1.utils import rotate_at_frame_w_obj
 
-SMPLH_PATH = "/data2/wh/hoi_diffusion_model/processed_data/smpl_all_models/smplh_amass"
+SMPLH_PATH = os.environ.get(
+    "SMPLH_PATH",
+    "/data2/wh/hoi_diffusion_model/processed_data/smpl_all_models/smplh_amass",
+)
 
 def to_tensor(array, dtype=torch.float32):
     if not torch.is_tensor(array):
@@ -128,6 +131,7 @@ class CanoObjectTrajDataset(Dataset):
         use_object_keypoints=False,
         use_local_sdf=False,
         use_dynamic_sdf=False,
+        allowed_sequence_names=None,
     ):
         self.train = train
 
@@ -250,6 +254,27 @@ class CanoObjectTrajDataset(Dataset):
 
         if not self.train:
             self.window_data_dict = self.filter_out_short_sequences()
+
+        if allowed_sequence_names is not None:
+            allowed_sequence_names = set(allowed_sequence_names)
+            filtered = {
+                new_idx: item
+                for new_idx, item in enumerate(
+                    item
+                    for item in self.window_data_dict.values()
+                    if item["seq_name"] in allowed_sequence_names
+                )
+            }
+            present = {item["seq_name"] for item in filtered.values()}
+            missing = sorted(allowed_sequence_names.difference(present))
+            if missing:
+                raise ValueError(
+                    "Requested sequence names are absent after dataset filters: "
+                    f"{missing[:10]}{' ...' if len(missing) > 10 else ''}"
+                )
+            if not filtered:
+                raise ValueError("Sequence filter produced an empty dataset")
+            self.window_data_dict = filtered
 
         # Get train and validation statistics.
         if self.train:
@@ -887,13 +912,35 @@ class CanoObjectTrajDataset(Dataset):
         extents = sdf_data["extents"].float()
         if sdf_grid.ndim != 4 or sdf_grid.shape[0] != 1:
             raise ValueError(f"{sdf_path} sdf_grid must be [1,D,H,W], got {sdf_grid.shape}")
+        if tuple(sdf_grid.shape[-3:]) != (64, 64, 64):
+            raise ValueError(
+                f"{sdf_path} must contain a 64^3 grid, got {sdf_grid.shape[-3:]}"
+            )
         if centroid.shape != (3,) or extents.shape != (3,):
             raise ValueError(
                 f"{sdf_path} centroid/extents must be [3], got "
                 f"{centroid.shape}/{extents.shape}"
             )
+        if not torch.isfinite(sdf_grid).all():
+            raise ValueError(f"{sdf_path} sdf_grid contains NaN or Inf")
+        if not torch.isfinite(centroid).all() or not torch.isfinite(extents).all():
+            raise ValueError(f"{sdf_path} centroid/extents contains NaN or Inf")
+        if (extents <= 0).any():
+            raise ValueError(f"{sdf_path} extents must be strictly positive")
+        if "resolution" in sdf_data and int(sdf_data["resolution"]) != 64:
+            raise ValueError(
+                f"{sdf_path} resolution metadata is {sdf_data['resolution']}, expected 64"
+            )
+        if "axis_order" in sdf_data and sdf_data["axis_order"] != "D(z),H(y),W(x)":
+            raise ValueError(
+                f"{sdf_path} has unsupported axis_order={sdf_data['axis_order']!r}"
+            )
 
-        result = {"sdf_grid": sdf_grid, "centroid": centroid, "extents": extents}
+        result = {
+            "sdf_grid": sdf_grid,
+            "centroid": centroid,
+            "extents": extents,
+        }
         self.object_sdf_cache[object_name] = result
         return result
 

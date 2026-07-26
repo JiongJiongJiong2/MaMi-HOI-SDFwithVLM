@@ -132,6 +132,83 @@ def extract_contact_points(jpos, hand_joints=None):
     return jpos[:, :, hand_joints, :]
 
 
+def project_to_so3(rotation_matrices, eps=1e-6):
+    """Map predicted 3x3 matrices to proper rotations for geometry queries.
+
+    This uses the continuous 6D/Gram-Schmidt construction on the first two
+    rows.  It avoids the repeated-singular-value gradient ambiguity of an SVD
+    projection, preserves an already-valid rotation, and guarantees det=+1.
+    Collapsed or collinear inputs fail fast instead of producing invalid query
+    geometry.
+    """
+    if rotation_matrices.shape[-2:] != (3, 3):
+        raise ValueError(
+            "rotation_matrices must end in [3, 3], "
+            f"got {rotation_matrices.shape}"
+        )
+    if not torch.isfinite(rotation_matrices).all():
+        raise ValueError("rotation_matrices contains NaN or Inf")
+
+    work = (
+        rotation_matrices.float()
+        if rotation_matrices.dtype in (torch.float16, torch.bfloat16)
+        else rotation_matrices
+    )
+    first = work[..., 0, :]
+    second = work[..., 1, :]
+    first_norm = torch.linalg.vector_norm(first, dim=-1, keepdim=True)
+    first_unit = first / first_norm.clamp_min(eps)
+    second_orthogonal = second - (
+        first_unit * (first_unit * second).sum(dim=-1, keepdim=True)
+    )
+    second_norm = torch.linalg.vector_norm(
+        second_orthogonal, dim=-1, keepdim=True
+    )
+    if (first_norm < eps).any() or (second_norm < eps).any():
+        raise ValueError(
+            "rotation_matrices contains collapsed or collinear basis rows"
+        )
+    second_unit = second_orthogonal / second_norm
+    third_unit = torch.linalg.cross(first_unit, second_unit, dim=-1)
+    return torch.stack((first_unit, second_unit, third_unit), dim=-2)
+
+
+def rotation_validity_statistics(rotation_matrices):
+    """Return per-matrix orthogonality error and determinant."""
+    if rotation_matrices.shape[-2:] != (3, 3):
+        raise ValueError(
+            "rotation_matrices must end in [3, 3], "
+            f"got {rotation_matrices.shape}"
+        )
+    work = (
+        rotation_matrices.float()
+        if rotation_matrices.dtype in (torch.float16, torch.bfloat16)
+        else rotation_matrices
+    )
+    identity = torch.eye(3, device=work.device, dtype=work.dtype)
+    gram = torch.matmul(work.transpose(-1, -2), work)
+    orthogonality_error = torch.linalg.matrix_norm(
+        gram - identity, ord="fro", dim=(-2, -1)
+    )
+    return orthogonality_error, torch.det(work)
+
+
+def object_to_world_points(points_object, object_rot_mat, object_com_pos):
+    """Transform row-vector canonical points to world coordinates."""
+    if points_object.ndim != 4 or points_object.shape[-1] != 3:
+        raise ValueError(
+            f"points_object must be [B, T, K, 3], got {points_object.shape}"
+        )
+    if object_rot_mat.shape[-2:] != (3, 3):
+        raise ValueError(f"object_rot_mat must end in [3, 3], got {object_rot_mat.shape}")
+    if object_com_pos.shape[-1] != 3:
+        raise ValueError(f"object_com_pos must end in 3, got {object_com_pos.shape}")
+    return (
+        torch.matmul(points_object, object_rot_mat.transpose(-1, -2))
+        + object_com_pos[:, :, None, :]
+    )
+
+
 def world_to_object_points(points_world, object_rot_mat, object_com_pos):
     """Transform world-space points into the object's canonical coordinate frame.
 
@@ -162,7 +239,59 @@ def world_to_object_points(points_world, object_rot_mat, object_com_pos):
     return torch.matmul(relative_points, object_rot_mat)
 
 
-def sample_object_sdf_at_points(sdf_grid, query_points_object, centroid, extents):
+def build_dynamic_sdf_prediction_query(
+    predicted_palm_world,
+    predicted_object_rotation,
+    predicted_object_com,
+):
+    """Build the U1 geometry query exclusively from predicted quantities."""
+    rotation_for_query = project_to_so3(predicted_object_rotation)
+    query_points_object = world_to_object_points(
+        predicted_palm_world.to(rotation_for_query.dtype),
+        rotation_for_query,
+        predicted_object_com.to(rotation_for_query.dtype),
+    )
+    return query_points_object, rotation_for_query
+
+
+def object_sdf_in_bounds_mask(query_points_object, centroid, extents, atol=1e-6):
+    """Return whether canonical query points fall inside the sampled SDF cube.
+
+    MaMi-HOI normalizes all axes by the largest full bounding-box extent, so
+    the valid grid domain is the cube ``centroid +/- max(extents)/2``.
+    """
+    if query_points_object.ndim != 3 or query_points_object.shape[-1] != 3:
+        raise ValueError(
+            "query_points_object must be [B, N, 3], "
+            f"got {query_points_object.shape}"
+        )
+    if centroid.shape != (query_points_object.shape[0], 3):
+        raise ValueError(f"centroid must be [B, 3], got {centroid.shape}")
+    if extents.shape != (query_points_object.shape[0], 3):
+        raise ValueError(f"extents must be [B, 3], got {extents.shape}")
+    if not torch.isfinite(query_points_object).all():
+        raise ValueError("query_points_object contains NaN or Inf")
+    if not torch.isfinite(centroid).all() or not torch.isfinite(extents).all():
+        raise ValueError("centroid/extents contains NaN or Inf")
+    if (extents <= 0).any():
+        raise ValueError("extents must be strictly positive")
+
+    max_extent = extents.max(dim=-1, keepdim=True).values
+    query_norm = (
+        (query_points_object - centroid[:, None, :])
+        * 2.0
+        / max_extent[:, None, :]
+    )
+    return (query_norm.abs() <= 1.0 + atol).all(dim=-1)
+
+
+def sample_object_sdf_at_points(
+    sdf_grid,
+    query_points_object,
+    centroid,
+    extents,
+    return_valid_mask=False,
+):
     """Differentiably query canonical object SDFs at object-local points.
 
     The metadata convention matches the original MaMi-HOI evaluator:
@@ -191,7 +320,12 @@ def sample_object_sdf_at_points(sdf_grid, query_points_object, centroid, extents
     if extents.shape != (sdf_grid.shape[0], 3):
         raise ValueError(f"extents must be [B, 3], got {extents.shape}")
 
-    max_extent = extents.max(dim=-1, keepdim=True).values.clamp_min(1e-6)
+    if not torch.isfinite(sdf_grid).all():
+        raise ValueError("sdf_grid contains NaN or Inf")
+    valid_mask = object_sdf_in_bounds_mask(
+        query_points_object, centroid, extents
+    )
+    max_extent = extents.max(dim=-1, keepdim=True).values
     query_norm = (query_points_object - centroid[:, None, :]) * 2.0 / max_extent[:, None, :]
     # PyTorch 3D grid_sample expects coordinates in W/H/D order.
     query_norm = query_norm[..., [2, 1, 0]]
@@ -205,7 +339,10 @@ def sample_object_sdf_at_points(sdf_grid, query_points_object, centroid, extents
         align_corners=True,
     )
     sampled = sampled.squeeze(2).squeeze(2).permute(0, 2, 1)
-    return sampled * (max_extent[:, None, :] / 2.0)
+    signed_distances = sampled * (max_extent[:, None, :] / 2.0)
+    if return_valid_mask:
+        return signed_distances, valid_mask
+    return signed_distances
 
 
 def masked_mean(values, mask, eps=1e-8):

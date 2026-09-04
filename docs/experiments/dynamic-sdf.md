@@ -1,157 +1,155 @@
-# 动态 SDF 实验操作手册
+# Dynamic SDF 有效性实验：U0/U1 操作手册
 
-这是一套为“尽快得出可信结论”设计的最小实验。当前新模块只在**训练期**计算额外损失；采样和推理仍沿用原始 MaMi-HOI 路径。因此，推理时绝不能输入 GT 未来手部轨迹。
+更新日期：2026-09-04
 
-实验顺序固定为：
+本实验只回答一个问题：从同一个 MaMi-HOI baseline checkpoint 开始，加入由当前预测手部与物体姿态驱动的 dynamic-SDF loss，是否改善生成结果的接触—穿透权衡，并且不损害 Hand JPE、Contact-F1 和整体动作质量。
 
-```text
-E0：评估原始 baseline
-E1：baseline + 动态 SDF 直接损失
-E2：baseline + 动态 SDF 直接损失 + SDF 轨迹排序
-```
-
-E1、E2 都从同一个 baseline checkpoint 微调。只有 E1 的结果有效且为正，才运行 E2。
-
-更完整的数据清单见 [`../../../docs/data/dynamic-sdf-data-checklist.md`](../../../docs/data/dynamic-sdf-data-checklist.md)。
-
-## 1. 运行前准备
-
-需要：
-
-- 可用的 MaMi-HOI baseline checkpoint；
-- 标准的 `processed_data/`、SMPL-H、BPS、评估器资源；
-- 每个训练物体的 `rest_object_sdf_256_npy_files/<object>.ply.npy` 和 `<object>.ply.json`；
-- Linux/AutoDL 上的项目 Conda/CUDA 环境。
-
-不要启用旧的 `--use_local_sdf`。它属于早期、不可用于当前论文实验的实现路线。
-
-```bash
-cd /path/to/MaMi-HOI-SDFwithVLM
-export DATA_ROOT=/path/to/processed_data
-export BASELINE_CKPT=/path/to/baseline/weights/model-9.pt
-```
-
-## 2. 生成每物体 64³ SDF 缓存
-
-```bash
-python scripts/prepare_object_sdf64.py \
-  --data_root_folder "${DATA_ROOT}" \
-  --resolution 64
-```
-
-应生成：
+当前只运行 U0/U1：
 
 ```text
-${DATA_ROOT}/object_sdf_64/
-  largetable.pt
-  woodchair.pt
-  ...
+U0：冻结 baseline，只评估
+U1：同一 baseline 严格加载 model/EMA，fresh optimizer，从 step 0 微调
 ```
 
-每个文件只含 `sdf_grid`、`centroid`、`extents`。这里的“动态”来自预测的手掌/物体姿态在每个训练步产生不同查询点，不是为每个序列生成不同 SDF。
+旧 E2/U6 fixed-target ranking 已有代码但不属于这轮基础验证；`--use_local_sdf`、VLM、ZipMap、G0 截面特征和 U2–U4 全部关闭。G0 是另一条独立的无训练实验，见 [`sectional-prior.md`](sectional-prior.md)。
 
-## 3. 预检和 smoke test
+## 1. 所需输入
 
-在正式训练前必须执行：
+设仓库为 `REPO_ROOT`、处理后数据为 `DATA_ROOT`。必须具备：
 
-```bash
-python tests/test_dynamic_sdf.py
-bash -n scripts/train_dynamic_sdf.sh scripts/train_dynamic_sdf_contrastive.sh
+```text
+${REPO_ROOT}/bps.pt
+${BASELINE_CKPT}
+${DATA_ROOT}/cano_train_diffusion_manip_window_120_joints24.p
+${DATA_ROOT}/cano_test_diffusion_manip_window_120_joints24.p
+${DATA_ROOT}/cano_min_max_mean_std_data_window_120_joints24.p
+${DATA_ROOT}/rest_object_sdf_256_npy_files/<object>.ply.npy
+${DATA_ROOT}/rest_object_sdf_256_npy_files/<object>.ply.json
+${DATA_ROOT}/rest_object_geo/<object>.ply
+${DATA_ROOT}/contact_labels_w_semantics_npy_files/<sequence>.npy
+${DATA_ROOT}/smpl_all_models/smplh_amass/male/model.npz
 ```
 
-然后用 E1 脚本先跑 200--500 step。检查：
+完整来源和验收见工作区的 [`dynamic-sdf-data-checklist.md`](../../../docs/data/dynamic-sdf-data-checklist.md)。
 
-- `Dynamic SDF Loss` 和总损失均为有限数值；
-- 没有 SDF 文件缺失、NaN 或明显的坐标越界错误；
-- 动态 SDF 损失乘上其权重，初期通常约占原训练损失的 5%--10%。
-
-若比例明显不对，只将 `LOSS_W_SDF` 乘以 10 或除以 10 后重跑一次 E1；不要做大规模权重搜索。
-
-## 4. E0：baseline 评估
-
-无需训练。用同一评估脚本、同一 `seed`、同一场景/物体划分、同一 guidance 开关评估 baseline checkpoint，并把结果写入结果表的 E0 行。
+## 2. 固定变量与 split
 
 ```bash
-python train/trainer_control_GAPA_chois.py \
-  --window=120 \
-  --batch_size=32 \
+export REPO_ROOT=/root/autodl-tmp/hoi/src/MaMi-HOI-SDFwithVLM
+export DATA_ROOT=/root/autodl-tmp/hoi/data/processed_data
+export BASELINE_CKPT=/root/autodl-tmp/hoi/checkpoints/baseline/model-9.pt
+export OUTPUT_ROOT=/root/autodl-tmp/hoi/outputs/sdf_gate0
+export SPLIT_MANIFEST=/root/autodl-tmp/hoi/outputs/protocol/split_seed1.json
+export SMPLH_PATH="${DATA_ROOT}/smpl_all_models/smplh_amass"
+export SEED=1
+export WANDB_MODE=offline
+
+cd "${REPO_ROOT}"
+mkdir -p "$(dirname "${SPLIT_MANIFEST}")" "${OUTPUT_ROOT}"
+
+python scripts/create_experiment_split_manifest.py \
   --data_root_folder="${DATA_ROOT}" \
-  --pretrained_model="${BASELINE_CKPT}" \
-  --save_res_folder=./dynamic_sdf_eval/E0_seed1 \
-  --seed=1 \
-  --input_first_human_pose \
-  --use_random_frame_bps \
-  --add_language_condition \
-  --use_object_keypoints \
-  --add_semantic_contact_labels \
-  --loss_w_feet=1 --loss_w_fk=0.5 --loss_w_obj_pts=1 \
-  --test_sample_res \
-  --use_long_planned_path \
-  --test_object_name=all \
-  --test_scene_name=frl_apartment_4 \
-  --use_guidance_in_denoising \
-  --compute_metrics
+  --output_path="${SPLIT_MANIFEST}" \
+  --validation_sequence_count=100 \
+  --seed="${SEED}" \
+  --window=120
 ```
 
-若测试 unseen object，则对 E0/E1/E2 同时加入 `--test_unseen_objects`。
+这个 manifest 只生成一次并记录 SHA-256；U0、U1 和独立 G0 都复用它，不能在看到 test 后重新划分。
 
-## 5. E1：动态 SDF 直接损失
+## 3. Stage A：开跑前必须通过
+
+若 `object_sdf_64` 完全不存在，生成一次且不使用 `--overwrite`：
 
 ```bash
-DATA_ROOT="${DATA_ROOT}" \
-BASELINE_CKPT="${BASELINE_CKPT}" \
-PROJECT=./dynamic_sdf_experiments \
-EXP_NAME=E1_dynamic_sdf_seed1 \
-TRAIN_STEPS=20000 \
-SAVE_EVERY=20000 \
-LOSS_W_SDF=1.0 \
-SEED=1 \
+test -d "${DATA_ROOT}/object_sdf_64" || python scripts/prepare_object_sdf64.py \
+  --data_root_folder="${DATA_ROOT}" \
+  --resolution=64
+```
+
+随后运行真实 64³/256³ 数值审计、关节审计和单元测试：
+
+```bash
+python scripts/audit_sdf64_vs_256.py \
+  --data_root_folder="${DATA_ROOT}" \
+  --output_folder="${OUTPUT_ROOT}/stage_a/sdf_resolution" \
+  --samples_per_object=100000 \
+  --seed="${SEED}"
+
+python scripts/audit_joint_ordering.py \
+  --data_root_folder="${DATA_ROOT}" \
+  --output_folder="${OUTPUT_ROOT}/stage_a/joint_ordering" \
+  --split=test \
+  --window=120
+
+python -m unittest tests.test_dynamic_sdf -v
+bash -n scripts/train_dynamic_sdf.sh scripts/evaluate_u0_u1.sh
+```
+
+人工确认 20/22 为同一左侧手腕—手链、21/23 为同一右侧链、无左右交换。真实 SDF sign/unit/axis、64³ 误差、OOB 与 rotation diagnostics 未通过前，不运行 20k。
+
+## 4. U0 冻结基线
+
+```bash
+EVAL_CKPT="${BASELINE_CKPT}" ROLE=U0 EVAL_SPLIT=validation GUIDANCE=off \
+  bash scripts/evaluate_u0_u1.sh
+
+EVAL_CKPT="${BASELINE_CKPT}" ROLE=U0 EVAL_SPLIT=test GUIDANCE=off \
+  bash scripts/evaluate_u0_u1.sh
+
+EVAL_CKPT="${BASELINE_CKPT}" ROLE=U0 EVAL_SPLIT=test GUIDANCE=on \
+  bash scripts/evaluate_u0_u1.sh
+```
+
+U0 不训练。guidance-off 是主结果，guidance-on 单独报告。
+
+## 5. U1 300-step CUDA smoke
+
+```bash
+TRAIN_STEPS=300 \
+SAVE_EVERY=300 \
+SMOKE_TEST=1 \
+EXP_NAME=U1_smoke_300 \
 bash scripts/train_dynamic_sdf.sh
 ```
 
-完成后，最终权重应类似：
+只有 `${OUTPUT_ROOT}/U1_smoke_300/smoke_test_report.json` 的 `status` 为 `PASS`，并且 total/dynamic-SDF loss、三类 query gradient、OOB/rotation、throughput、peak CUDA memory、final checkpoint strict reload 均通过，才运行 20k。若 RTX 4090 在冻结的 batch=32 上 OOM，应保存证据并换 48 GB 卡，不要无记录地改变正式协议。
 
-```text
-dynamic_sdf_experiments/E1_dynamic_sdf_seed1/weights/model-final-20000.pt
-```
-
-将 E0 的评估命令中的 `--pretrained_model` 和 `--save_res_folder` 改为 E1 对应路径后，重新评估。其余参数不得改变。
-
-## 6. E2：SDF 轨迹排序（轻量对比学习）
-
-E2 的“对比”不使用 VLM、三塔或 InfoNCE；它只要求预测 SDF 轨迹更接近 GT 轨迹，并远离穿透/浮空扰动轨迹。它必须从 `BASELINE_CKPT` 出发，不能接着 E1 训练。
+## 6. U1 20k 与固定评估
 
 ```bash
-DATA_ROOT="${DATA_ROOT}" \
-BASELINE_CKPT="${BASELINE_CKPT}" \
-PROJECT=./dynamic_sdf_experiments \
-EXP_NAME=E2_dynamic_sdf_ranking_seed1 \
 TRAIN_STEPS=20000 \
-SAVE_EVERY=20000 \
-LOSS_W_SDF=1.0 \
-LOSS_W_RANKING=1.0 \
-SEED=1 \
-bash scripts/train_dynamic_sdf_contrastive.sh
+SAVE_EVERY=5000 \
+SMOKE_TEST=0 \
+EXP_NAME=U1_dynamic_sdf_20k \
+bash scripts/train_dynamic_sdf.sh
 ```
 
-使用与 E0/E1 完全相同的评估设置评估 E2。
+最终 checkpoint：
 
-## 7. 每次实验必须保存什么
+```text
+${OUTPUT_ROOT}/U1_dynamic_sdf_20k/weights/model-final-20000.pt
+```
 
-每个 `(实验, seed, 测试划分)` 一行，填写 [`../../experiments/dynamic_sdf_results_template.csv`](../../experiments/dynamic_sdf_results_template.csv)。同时保留：
+```bash
+export U1_CKPT="${OUTPUT_ROOT}/U1_dynamic_sdf_20k/weights/model-final-20000.pt"
 
-- `opt.yaml`、代码 commit、完整启动命令、`DATA_ROOT` 和 baseline checkpoint 路径；
-- 最终 checkpoint，以及如果使用验证集选择的最佳 checkpoint；
-- total、diffusion、FK、object-points、dynamic-SDF、SDF-ranking 的训练曲线；
-- 原始逐序列 metric JSON、生成 `.npz`、至少 3 个成功和 3 个失败的渲染视频；
-- 吞吐量、峰值显存、每条序列推理时间；
-- guidance 是否开启、场景/物体选择、是否 unseen-object 测试。
+EVAL_CKPT="${U1_CKPT}" ROLE=U1 EVAL_SPLIT=validation GUIDANCE=off ENABLE_DYNAMIC_SDF_DIAGNOSTICS=1 \
+  bash scripts/evaluate_u0_u1.sh
 
-主要比较指标是 Contact Precision/Recall/F1、GT 接触帧的 `D_hand`、手-物穿透、Hand JPE、MPJPE、foot sliding、物体 COM/旋转误差。标准 evaluator 可用时再补 Matching Score、R-precision 和 FID。
+EVAL_CKPT="${U1_CKPT}" ROLE=U1 EVAL_SPLIT=test GUIDANCE=off ENABLE_DYNAMIC_SDF_DIAGNOSTICS=1 \
+  bash scripts/evaluate_u0_u1.sh
 
-## 8. 20k 筛选的决策规则
+EVAL_CKPT="${U1_CKPT}" ROLE=U1 EVAL_SPLIT=test GUIDANCE=on ENABLE_DYNAMIC_SDF_DIAGNOSTICS=1 \
+  bash scripts/evaluate_u0_u1.sh
+```
 
-- 仅当 E1 在穿透或 `D_hand` 上约有 5% 改善，且 Contact-F1/Hand-JPE 没有明显退化，才继续 E2。
-- 仅当 E2 在接触--穿透权衡上优于 E1，才保留 ranking loss。
-- 若 E1 无改善或退化，先检查数据覆盖和坐标变换；不要立刻叠加 VLM、ZipMap 或更多模块。
-- 筛选得到正结果后，再用至少 3 个 seed 重跑 E0/E1/E2；置信区间按原始 sequence 聚合，不能把滑窗当独立样本。
+5k/10k/15k 只能在 validation 上作为诊断；预声明的最终比较 checkpoint 是 20k，不能按 test 选模型。
+
+## 7. 输出与判定
+
+每个 SDF run 自动保存 `run_manifest.json`、`opt.yaml`、`console.log`、逐序列与 aggregate metrics、生成 `.npz`、diagnostics、checkpoint provenance、throughput 和 peak memory。smoke 另有 `smoke_test_report.json`，训练目录下保存 `weights/model-*.pt` 与 `model-final-*.pt`。
+
+必须区分两个结论：smoke/Stage A 全通过只是 **RUN_GATE_PASS**；只有 U1 在冻结的 guidance-off test 上相对 U0 使 `D_hand` 或 legacy mean negative-SDF penetration score 约有 5% 改善，且 Contact-F1、Hand JPE 无明显退化，才记为 **EFFICACY_PASS**。不能把 legacy penetration score 改名为尚未实现的 penetration ratio 或 conditional depth。
+
+更严格的命令与指标边界以工作区 [`experiment-gate0-u0-u1-runbook.md`](../../../docs/current/experiment-gate0-u0-u1-runbook.md) 为准，完整 AutoDL 文件布局与备份见 [`服务器指南.md`](../../../服务器指南.md)。

@@ -32,7 +32,7 @@ Clone the repo and enter the project folder.
 
 ```bash
 git clone <this-repo-url>
-cd MaMi-HOI
+cd MaMi-HOI-SDFwithVLM
 ```
 
 Create and activate a Conda environment.
@@ -42,7 +42,7 @@ conda create -n mami_hoi python=3.8
 conda activate mami_hoi
 ```
 
-Install PyTorch.
+Install PyTorch. The following 1.11/CUDA 11.3 command is the historical CHOIS-style profile. For RTX 4090, prefer the AutoDL Python 3.10 / PyTorch 2.1.2 / CUDA 11.8 candidate documented in the workspace server guide and validate it with the focused tests plus the 300-step U1 smoke before freezing the environment; do not treat this historical command as mandatory on Ada GPUs.
 
 ```bash
 conda install pytorch==1.11.0 torchvision==0.12.0 torchaudio==0.11.0 cudatoolkit=11.3 -c pytorch
@@ -107,17 +107,7 @@ processed_data/
 
 `bps.pt` should stay in the repository root. The dataset loader will create cached BPS and windowed-data files during the first run if they do not already exist.
 
-Before running on a new machine, check the following path settings:
-
-
-
-- Update data and checkpoint paths in `scripts/train_chois_omomo.sh` and `scripts/test_ours_long_seq_in_scene.sh`.
-- update hard-coded local paths in:
-  - `train/trainer_chois.py`
-  - `train/trainer_control_GAPA_chois.py`
-  - `manip/model/transformer_control_GAPA_motion_cond_diffusion.py`
-  - `manip/data/cano_traj_dataset.py`
-  - `manip/data/unseen_obj_long_cano_traj_dataset.py`
+For the current U0/U1 and G0 foundation experiments, run from the repository root and set `DATA_ROOT`, `BASELINE_CKPT`, `OUTPUT_ROOT`, `SPLIT_MANIFEST`, and `SMPLH_PATH` as documented in [`docs/experiments/dynamic-sdf.md`](docs/experiments/dynamic-sdf.md). Do not mass-replace every historical `/data2/wh/hoi_diffusion_model` string. Legacy long-sequence, evaluator, unseen-object, and rendering utilities may still need their own paths updated when those separate workflows are used.
 
 For Blender rendering, download Blender and update the following variables in `manip/vis/blender_vis_mesh_motion.py`:
 

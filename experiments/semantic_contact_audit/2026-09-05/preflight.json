@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "audit_date": "2026-09-05",
+  "status": "BLOCKED_MISSING_INPUTS",
+  "empirical_audit_executed": false,
+  "inspection_scope": "E:/HOI and its two nested repositories; no remote server or other drive was inspected",
+  "repository": "E:/HOI/MaMi-HOI-SDFwithVLM",
+  "data_directories": [
+    {"path": "E:/HOI/data", "exists": false},
+    {"path": "E:/HOI/MaMi-HOI/data", "exists": true, "file_count": 5, "linked_external_directories_found": false},
+    {"path": "E:/HOI/MaMi-HOI-SDFwithVLM/data", "exists": true, "file_count": 5, "linked_external_directories_found": false}
+  ],
+  "experimental_repository_data_files": [
+    {"path": "data/body_models/README.md", "bytes": 77, "role": "body model placement instructions; not model weights"},
+    {"path": "data/part_vert_ids/left_hand_vids.npy", "bytes": 6304, "dtype": "int64", "shape": [772], "role": "static body vertex IDs"},
+    {"path": "data/part_vert_ids/right_hand_vids.npy", "bytes": 6232, "dtype": "int64", "shape": [763], "role": "static body vertex IDs"},
+    {"path": "data/part_vert_ids/left_foot_vids.npy", "bytes": 2136, "dtype": "int64", "shape": [251], "role": "static body vertex IDs"},
+    {"path": "data/part_vert_ids/right_foot_vids.npy", "bytes": 2136, "dtype": "int64", "shape": [251], "role": "static body vertex IDs"}
+  ],
+  "workspace_binary_scan": {
+    "searched_extensions": [".p", ".pt", ".pth", ".ckpt", ".obj", ".ply", ".npz"],
+    "additional_pattern": "*split*.json",
+    "ignored_files_included": true,
+    "git_internal_directories_excluded": true,
+    "matches": [
+      "MaMi-HOI/bps.pt",
+      "MaMi-HOI/t2m_eval/t2m_mean_std_jpos.p",
+      "MaMi-HOI-SDFwithVLM/bps.pt",
+      "MaMi-HOI-SDFwithVLM/t2m_eval/t2m_mean_std_jpos.p"
+    ],
+    "note": "BPS basis and evaluation normalization statistics are not baseline weights or motion datasets. Absence applies only to the inspected scope."
+  },
+  "configured_paths": {"DATA_ROOT": null, "BASELINE_CKPT": null, "SPLIT_MANIFEST": null},
+  "environment": {
+    "python_executable": "C:/Python314/python.exe",
+    "python_version": "3.14.4",
+    "module_discoverable": {"numpy": false, "torch": false, "joblib": false, "trimesh": false, "scipy": false, "pytest": true},
+    "module_check_type": "importlib.util.find_spec; not an import or functional test",
+    "gpu": "NVIDIA GeForce RTX 3060 Laptop GPU",
+    "gpu_memory_mib": 6144
+  },
+  "gates": {
+    "semantic_headroom": {"status": "NOT_ASSESSED", "gate_result": null, "reason": "No accessible motion/text/contact/object-pose dataset"},
+    "candidate_coverage": {"status": "NOT_ASSESSED", "gate_result": null, "reason": "No U0 checkpoint, frozen split, object surfaces or valid prediction cache"},
+    "next_semantic_probe": {"status": "HOLD", "reason": "Neither prerequisite gate has empirical evidence"}
+  },
+  "coverage": [
+    {"k": 16, "candidate_recall": null, "oracle_top1": null, "oracle_min_distance": null, "normalized_distance": null, "status": "NOT_RUN"},
+    {"k": 32, "candidate_recall": null, "oracle_top1": null, "oracle_min_distance": null, "normalized_distance": null, "status": "NOT_RUN"},
+    {"k": 64, "candidate_recall": null, "oracle_top1": null, "oracle_min_distance": null, "normalized_distance": null, "status": "NOT_RUN"},
+    {"k": 128, "candidate_recall": null, "oracle_top1": null, "oracle_min_distance": null, "normalized_distance": null, "status": "NOT_RUN"}
+  ],
+  "real_success_examples": null,
+  "real_failure_examples": null,
+  "current_npz_export_fields_verified_in_source": ["seq_name", "global_jpos"],
+  "next_input_requirement": "processed_data root, selected U0 checkpoint, frozen split, compatible runtime or server connection; if supplying predictions, predicted object pose and provenance are required in addition to joints",
+  "readme_changed": false,
+  "readme_decision": "No empirical experiment status changed; README already describes data as external and gates as pending"
+}

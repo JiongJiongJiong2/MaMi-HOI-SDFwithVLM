@@ -1,0 +1,1623 @@
+{
+  "version": 1,
+  "label_protocol": "Labels fixed after direct raw-mesh cross-section review, before winding/parity evaluation. Not measured physical thickness. Occupancy algorithms cannot generate these labels.",
+  "objects": {
+    "plasticbox": {
+      "mesh_sha256": "e0a9c29124314f02d6b189b36716c5a01aeeb973b4001e8f28ee76f3382a1a76",
+      "review": "Local cavity air is supported by reviewed open-recess geometry. No independent positive material interior established for wall/bottom/rim. A cannot pass these regions merely by making winding and parity agree; thickness/source geometry evidence is required.",
+      "review_sections": [
+        {
+          "axis": 0,
+          "value": 0.008743209999999987,
+          "segment_count": 835
+        },
+        {
+          "axis": 1,
+          "value": 0.003892005000000004,
+          "segment_count": 642
+        },
+        {
+          "axis": 2,
+          "value": -0.09653205949999999,
+          "segment_count": 1082
+        },
+        {
+          "axis": 2,
+          "value": 0.009109585000000003,
+          "segment_count": 1140
+        },
+        {
+          "axis": 2,
+          "value": 0.12984289300000001,
+          "segment_count": 1651
+        },
+        {
+          "axis": 2,
+          "value": 0.15700788729999998,
+          "segment_count": 217
+        }
+      ],
+      "probes": [
+        {
+          "id": "outside_0_-1",
+          "point": [
+            -0.298958609,
+            0.003892005000000004,
+            0.009109585000000003
+          ],
+          "label": "free",
+          "region": "external_air",
+          "source": "Strictly outside raw vertex AABB by 0.1 max-extent; no material inferred beyond observed geometry."
+        },
+        {
+          "id": "outside_0_1",
+          "point": [
+            0.316445029,
+            0.003892005000000004,
+            0.009109585000000003
+          ],
+          "label": "free",
+          "region": "external_air",
+          "source": "Strictly outside raw vertex AABB by 0.1 max-extent; no material inferred beyond observed geometry."
+        },
+        {
+          "id": "outside_1_-1",
+          "point": [
+            0.008743209999999987,
+            -0.366293469,
+            0.009109585000000003
+          ],
+          "label": "free",
+          "region": "external_air",
+          "source": "Strictly outside raw vertex AABB by 0.1 max-extent; no material inferred beyond observed geometry."
+        },
+        {
+          "id": "outside_1_1",
+          "point": [
+            0.008743209999999987,
+            0.374077479,
+            0.009109585000000003
+          ],
+          "label": "free",
+          "region": "external_air",
+          "source": "Strictly outside raw vertex AABB by 0.1 max-extent; no material inferred beyond observed geometry."
+        },
+        {
+          "id": "outside_2_-1",
+          "point": [
+            0.008743209999999987,
+            0.003892005000000004,
+            -0.203504629
+          ],
+          "label": "free",
+          "region": "external_air",
+          "source": "Strictly outside raw vertex AABB by 0.1 max-extent; no material inferred beyond observed geometry."
+        },
+        {
+          "id": "outside_2_1",
+          "point": [
+            0.008743209999999987,
+            0.003892005000000004,
+            0.221723799
+          ],
+          "label": "free",
+          "region": "external_air",
+          "source": "Strictly outside raw vertex AABB by 0.1 max-extent; no material inferred beyond observed geometry."
+        },
+        {
+          "id": "cavity_0",
+          "point": [
+            0.008743209999999987,
+            0.003892005000000004,
+            -0.08
+          ],
+          "label": "free",
+          "region": "reviewed_cavity_air",
+          "source": "Reviewed U-shaped x/y vertical sections and horizontal perimeter; point lies well within visible open recess, away from walls. Unobstructed upward corridor is supporting evidence, not central-point auto-label.",
+          "checks": "open_vertical_corridor"
+        },
+        {
+          "id": "cavity_1",
+          "point": [
+            0.008743209999999987,
+            0.003892005000000004,
+            0
+          ],
+          "label": "free",
+          "region": "reviewed_cavity_air",
+          "source": "Reviewed U-shaped x/y vertical sections and horizontal perimeter; point lies well within visible open recess, away from walls. Unobstructed upward corridor is supporting evidence, not central-point auto-label.",
+          "checks": "open_vertical_corridor"
+        },
+        {
+          "id": "cavity_2",
+          "point": [
+            0.008743209999999987,
+            0.003892005000000004,
+            0.08
+          ],
+          "label": "free",
+          "region": "reviewed_cavity_air",
+          "source": "Reviewed U-shaped x/y vertical sections and horizontal perimeter; point lies well within visible open recess, away from walls. Unobstructed upward corridor is supporting evidence, not central-point auto-label.",
+          "checks": "open_vertical_corridor"
+        },
+        {
+          "id": "cavity_3",
+          "point": [
+            0.038743209999999986,
+            0.003892005000000004,
+            0.02
+          ],
+          "label": "free",
+          "region": "reviewed_cavity_air",
+          "source": "Reviewed U-shaped x/y vertical sections and horizontal perimeter; point lies well within visible open recess, away from walls. Unobstructed upward corridor is supporting evidence, not central-point auto-label.",
+          "checks": "open_vertical_corridor"
+        },
+        {
+          "id": "cavity_4",
+          "point": [
+            -0.02125679000000001,
+            0.003892005000000004,
+            0.02
+          ],
+          "label": "free",
+          "region": "reviewed_cavity_air",
+          "source": "Reviewed U-shaped x/y vertical sections and horizontal perimeter; point lies well within visible open recess, away from walls. Unobstructed upward corridor is supporting evidence, not central-point auto-label.",
+          "checks": "open_vertical_corridor"
+        },
+        {
+          "id": "cavity_5",
+          "point": [
+            0.008743209999999987,
+            0.033892005,
+            0.04
+          ],
+          "label": "free",
+          "region": "reviewed_cavity_air",
+          "source": "Reviewed U-shaped x/y vertical sections and horizontal perimeter; point lies well within visible open recess, away from walls. Unobstructed upward corridor is supporting evidence, not central-point auto-label.",
+          "checks": "open_vertical_corridor"
+        },
+        {
+          "id": "cavity_6",
+          "point": [
+            0.008743209999999987,
+            -0.026107994999999995,
+            0.04
+          ],
+          "label": "free",
+          "region": "reviewed_cavity_air",
+          "source": "Reviewed U-shaped x/y vertical sections and horizontal perimeter; point lies well within visible open recess, away from walls. Unobstructed upward corridor is supporting evidence, not central-point auto-label.",
+          "checks": "open_vertical_corridor"
+        },
+        {
+          "id": "above_opening",
+          "point": [
+            0.008743209999999987,
+            0.003892005000000004,
+            0.18002622
+          ],
+          "label": "free",
+          "region": "above_open_top",
+          "source": "Above highest raw mesh vertex; reviewed central opening has no cap.",
+          "checks": "open_vertical_corridor"
+        },
+        {
+          "id": "wall_0_negative_0",
+          "point": [
+            -0.17477513857041982,
+            0.003892005000000004,
+            0.009109585000000003
+          ],
+          "label": "unknown",
+          "region": "wall_material_unresolved",
+          "source": "Wall role is visible, but this cross-section does not establish material thickness. Offsets around the sheet are not certified material/free."
+        },
+        {
+          "id": "wall_0_negative_1",
+          "point": [
+            -0.17177513857041982,
+            0.003892005000000004,
+            0.009109585000000003
+          ],
+          "label": "unknown",
+          "region": "wall_material_unresolved",
+          "source": "Wall role is visible, but this cross-section does not establish material thickness. Offsets around the sheet are not certified material/free."
+        },
+        {
+          "id": "wall_0_negative_2",
+          "point": [
+            -0.17077513857041982,
+            0.003892005000000004,
+            0.009109585000000003
+          ],
+          "label": "unknown",
+          "region": "wall_material_unresolved",
+          "source": "Wall role is visible, but this cross-section does not establish material thickness. Offsets around the sheet are not certified material/free."
+        },
+        {
+          "id": "wall_0_negative_3",
+          "point": [
+            -0.16977513857041981,
+            0.003892005000000004,
+            0.009109585000000003
+          ],
+          "label": "unknown",
+          "region": "wall_material_unresolved",
+          "source": "Wall role is visible, but this cross-section does not establish material thickness. Offsets around the sheet are not certified material/free."
+        },
+        {
+          "id": "wall_0_negative_4",
+          "point": [
+            -0.1667751385704198,
+            0.003892005000000004,
+            0.009109585000000003
+          ],
+          "label": "unknown",
+          "region": "wall_material_unresolved",
+          "source": "Wall role is visible, but this cross-section does not establish material thickness. Offsets around the sheet are not certified material/free."
+        },
+        {
+          "id": "wall_0_positive_0",
+          "point": [
+            0.17255413638059602,
+            0.003892005000000004,
+            0.009109585000000003
+          ],
+          "label": "unknown",
+          "region": "wall_material_unresolved",
+          "source": "Wall role is visible, but this cross-section does not establish material thickness. Offsets around the sheet are not certified material/free."
+        },
+        {
+          "id": "wall_0_positive_1",
+          "point": [
+            0.17555413638059603,
+            0.003892005000000004,
+            0.009109585000000003
+          ],
+          "label": "unknown",
+          "region": "wall_material_unresolved",
+          "source": "Wall role is visible, but this cross-section does not establish material thickness. Offsets around the sheet are not certified material/free."
+        },
+        {
+          "id": "wall_0_positive_2",
+          "point": [
+            0.17655413638059603,
+            0.003892005000000004,
+            0.009109585000000003
+          ],
+          "label": "unknown",
+          "region": "wall_material_unresolved",
+          "source": "Wall role is visible, but this cross-section does not establish material thickness. Offsets around the sheet are not certified material/free."
+        },
+        {
+          "id": "wall_0_positive_3",
+          "point": [
+            0.17755413638059603,
+            0.003892005000000004,
+            0.009109585000000003
+          ],
+          "label": "unknown",
+          "region": "wall_material_unresolved",
+          "source": "Wall role is visible, but this cross-section does not establish material thickness. Offsets around the sheet are not certified material/free."
+        },
+        {
+          "id": "wall_0_positive_4",
+          "point": [
+            0.18055413638059603,
+            0.003892005000000004,
+            0.009109585000000003
+          ],
+          "label": "unknown",
+          "region": "wall_material_unresolved",
+          "source": "Wall role is visible, but this cross-section does not establish material thickness. Offsets around the sheet are not certified material/free."
+        },
+        {
+          "id": "wall_1_negative_0",
+          "point": [
+            0.008743209999999987,
+            -0.23964733377135997,
+            0.009109585000000003
+          ],
+          "label": "unknown",
+          "region": "wall_material_unresolved",
+          "source": "Wall role is visible, but this cross-section does not establish material thickness. Offsets around the sheet are not certified material/free."
+        },
+        {
+          "id": "wall_1_negative_1",
+          "point": [
+            0.008743209999999987,
+            -0.23664733377135996,
+            0.009109585000000003
+          ],
+          "label": "unknown",
+          "region": "wall_material_unresolved",
+          "source": "Wall role is visible, but this cross-section does not establish material thickness. Offsets around the sheet are not certified material/free."
+        },
+        {
+          "id": "wall_1_negative_2",
+          "point": [
+            0.008743209999999987,
+            -0.23564733377135996,
+            0.009109585000000003
+          ],
+          "label": "unknown",
+          "region": "wall_material_unresolved",
+          "source": "Wall role is visible, but this cross-section does not establish material thickness. Offsets around the sheet are not certified material/free."
+        },
+        {
+          "id": "wall_1_negative_3",
+          "point": [
+            0.008743209999999987,
+            -0.23464733377135996,
+            0.009109585000000003
+          ],
+          "label": "unknown",
+          "region": "wall_material_unresolved",
+          "source": "Wall role is visible, but this cross-section does not establish material thickness. Offsets around the sheet are not certified material/free."
+        },
+        {
+          "id": "wall_1_negative_4",
+          "point": [
+            0.008743209999999987,
+            -0.23164733377135996,
+            0.009109585000000003
+          ],
+          "label": "unknown",
+          "region": "wall_material_unresolved",
+          "source": "Wall role is visible, but this cross-section does not establish material thickness. Offsets around the sheet are not certified material/free."
+        },
+        {
+          "id": "wall_1_positive_0",
+          "point": [
+            0.008743209999999987,
+            0.25944806356529626,
+            0.009109585000000003
+          ],
+          "label": "unknown",
+          "region": "wall_material_unresolved",
+          "source": "Wall role is visible, but this cross-section does not establish material thickness. Offsets around the sheet are not certified material/free."
+        },
+        {
+          "id": "wall_1_positive_1",
+          "point": [
+            0.008743209999999987,
+            0.26244806356529626,
+            0.009109585000000003
+          ],
+          "label": "unknown",
+          "region": "wall_material_unresolved",
+          "source": "Wall role is visible, but this cross-section does not establish material thickness. Offsets around the sheet are not certified material/free."
+        },
+        {
+          "id": "wall_1_positive_2",
+          "point": [
+            0.008743209999999987,
+            0.26344806356529626,
+            0.009109585000000003
+          ],
+          "label": "unknown",
+          "region": "wall_material_unresolved",
+          "source": "Wall role is visible, but this cross-section does not establish material thickness. Offsets around the sheet are not certified material/free."
+        },
+        {
+          "id": "wall_1_positive_3",
+          "point": [
+            0.008743209999999987,
+            0.26444806356529627,
+            0.009109585000000003
+          ],
+          "label": "unknown",
+          "region": "wall_material_unresolved",
+          "source": "Wall role is visible, but this cross-section does not establish material thickness. Offsets around the sheet are not certified material/free."
+        },
+        {
+          "id": "wall_1_positive_4",
+          "point": [
+            0.008743209999999987,
+            0.26744806356529627,
+            0.009109585000000003
+          ],
+          "label": "unknown",
+          "region": "wall_material_unresolved",
+          "source": "Wall role is visible, but this cross-section does not establish material thickness. Offsets around the sheet are not certified material/free."
+        },
+        {
+          "id": "bottom_0",
+          "point": [
+            0.008743209999999987,
+            0.003892005000000004,
+            -0.12718480829141712
+          ],
+          "label": "unknown",
+          "region": "bottom_material_unresolved",
+          "source": "One distinct bottom surface intersection; bottom material thickness is not recoverable from this local evidence."
+        },
+        {
+          "id": "bottom_1",
+          "point": [
+            0.008743209999999987,
+            0.003892005000000004,
+            -0.12418480829141712
+          ],
+          "label": "unknown",
+          "region": "bottom_material_unresolved",
+          "source": "One distinct bottom surface intersection; bottom material thickness is not recoverable from this local evidence."
+        },
+        {
+          "id": "bottom_2",
+          "point": [
+            0.008743209999999987,
+            0.003892005000000004,
+            -0.12318480829141712
+          ],
+          "label": "unknown",
+          "region": "bottom_material_unresolved",
+          "source": "One distinct bottom surface intersection; bottom material thickness is not recoverable from this local evidence."
+        },
+        {
+          "id": "bottom_3",
+          "point": [
+            0.008743209999999987,
+            0.003892005000000004,
+            -0.12218480829141712
+          ],
+          "label": "unknown",
+          "region": "bottom_material_unresolved",
+          "source": "One distinct bottom surface intersection; bottom material thickness is not recoverable from this local evidence."
+        },
+        {
+          "id": "bottom_4",
+          "point": [
+            0.008743209999999987,
+            0.003892005000000004,
+            -0.11918480829141712
+          ],
+          "label": "unknown",
+          "region": "bottom_material_unresolved",
+          "source": "One distinct bottom surface intersection; bottom material thickness is not recoverable from this local evidence."
+        },
+        {
+          "id": "rim_0",
+          "point": [
+            0.20315436200686898,
+            0.003892005000000004,
+            0.12984289300000001
+          ],
+          "label": "unknown",
+          "region": "rim_thinwall_unresolved",
+          "source": "Raw upper-wall/rim cross section is visible, but duplicate/open/nonmanifold geometry does not certify a material interval."
+        },
+        {
+          "id": "rim_1",
+          "point": [
+            0.20465436200686898,
+            0.003892005000000004,
+            0.12984289300000001
+          ],
+          "label": "unknown",
+          "region": "rim_thinwall_unresolved",
+          "source": "Raw upper-wall/rim cross section is visible, but duplicate/open/nonmanifold geometry does not certify a material interval."
+        },
+        {
+          "id": "rim_2",
+          "point": [
+            0.20515436200686898,
+            0.003892005000000004,
+            0.12984289300000001
+          ],
+          "label": "unknown",
+          "region": "rim_thinwall_unresolved",
+          "source": "Raw upper-wall/rim cross section is visible, but duplicate/open/nonmanifold geometry does not certify a material interval."
+        },
+        {
+          "id": "rim_3",
+          "point": [
+            0.20565436200686898,
+            0.003892005000000004,
+            0.12984289300000001
+          ],
+          "label": "unknown",
+          "region": "rim_thinwall_unresolved",
+          "source": "Raw upper-wall/rim cross section is visible, but duplicate/open/nonmanifold geometry does not certify a material interval."
+        },
+        {
+          "id": "rim_4",
+          "point": [
+            0.207154362006869,
+            0.003892005000000004,
+            0.12984289300000001
+          ],
+          "label": "unknown",
+          "region": "rim_thinwall_unresolved",
+          "source": "Raw upper-wall/rim cross section is visible, but duplicate/open/nonmanifold geometry does not certify a material interval."
+        }
+      ],
+      "lines": [
+        {
+          "id": "wall_0_negative",
+          "start": [
+            -0.17477513857041982,
+            0.003892005000000004,
+            0.009109585000000003
+          ],
+          "end": [
+            -0.1667751385704198,
+            0.003892005000000004,
+            0.009109585000000003
+          ],
+          "region": "wall_thickness_unresolved",
+          "evidence": "Observed sheet intersection; no independently established paired material boundary."
+        },
+        {
+          "id": "wall_0_positive",
+          "start": [
+            0.17255413638059602,
+            0.003892005000000004,
+            0.009109585000000003
+          ],
+          "end": [
+            0.18055413638059603,
+            0.003892005000000004,
+            0.009109585000000003
+          ],
+          "region": "wall_thickness_unresolved",
+          "evidence": "Observed sheet intersection; no independently established paired material boundary."
+        },
+        {
+          "id": "wall_1_negative",
+          "start": [
+            0.008743209999999987,
+            -0.23964733377135997,
+            0.009109585000000003
+          ],
+          "end": [
+            0.008743209999999987,
+            -0.23164733377135996,
+            0.009109585000000003
+          ],
+          "region": "wall_thickness_unresolved",
+          "evidence": "Observed sheet intersection; no independently established paired material boundary."
+        },
+        {
+          "id": "wall_1_positive",
+          "start": [
+            0.008743209999999987,
+            0.25944806356529626,
+            0.009109585000000003
+          ],
+          "end": [
+            0.008743209999999987,
+            0.26744806356529627,
+            0.009109585000000003
+          ],
+          "region": "wall_thickness_unresolved",
+          "evidence": "Observed sheet intersection; no independently established paired material boundary."
+        },
+        {
+          "id": "bottom_short_line",
+          "start": [
+            0.008743209999999987,
+            0.003892005000000004,
+            -0.12718480829141712
+          ],
+          "end": [
+            0.008743209999999987,
+            0.003892005000000004,
+            -0.11918480829141712
+          ],
+          "region": "bottom_thickness_unresolved",
+          "evidence": "Central vertical line has one distinct floor hit; no lower/upper material pair."
+        },
+        {
+          "id": "rim_short_line",
+          "start": [
+            0.20215436200686898,
+            0.003892005000000004,
+            0.12984289300000001
+          ],
+          "end": [
+            0.208154362006869,
+            0.003892005000000004,
+            0.12984289300000001
+          ],
+          "region": "rim_thinwall_unresolved",
+          "evidence": "Rim adjacent upper-wall hit; thickness deliberately not assigned."
+        }
+      ]
+    },
+    "trashcan": {
+      "mesh_sha256": "7381b83dc33265872753b8425ec7da4a24da0fc0512b57ebda3307c298659d38",
+      "review": "Local cavity air is supported by reviewed open-recess geometry. No independent positive material interior established for wall/bottom/rim. A cannot pass these regions merely by making winding and parity agree; thickness/source geometry evidence is required.",
+      "review_sections": [
+        {
+          "axis": 0,
+          "value": -0.0004502250000000055,
+          "segment_count": 495
+        },
+        {
+          "axis": 1,
+          "value": -0.0013562399999999947,
+          "segment_count": 405
+        },
+        {
+          "axis": 2,
+          "value": -0.11256741750000002,
+          "segment_count": 385
+        },
+        {
+          "axis": 2,
+          "value": 0.005388304999999982,
+          "segment_count": 421
+        },
+        {
+          "axis": 2,
+          "value": 0.14019484499999996,
+          "segment_count": 481
+        },
+        {
+          "axis": 2,
+          "value": 0.17052631649999994,
+          "segment_count": 32
+        }
+      ],
+      "probes": [
+        {
+          "id": "outside_0_-1",
+          "point": [
+            -0.148776065,
+            -0.0013562399999999947,
+            0.005388304999999996
+          ],
+          "label": "free",
+          "region": "external_air",
+          "source": "Strictly outside raw vertex AABB by 0.1 max-extent; no material inferred beyond observed geometry."
+        },
+        {
+          "id": "outside_0_1",
+          "point": [
+            0.147875615,
+            -0.0013562399999999947,
+            0.005388304999999996
+          ],
+          "label": "free",
+          "region": "external_air",
+          "source": "Strictly outside raw vertex AABB by 0.1 max-extent; no material inferred beyond observed geometry."
+        },
+        {
+          "id": "outside_1_-1",
+          "point": [
+            -0.0004502250000000055,
+            -0.189215395,
+            0.005388304999999996
+          ],
+          "label": "free",
+          "region": "external_air",
+          "source": "Strictly outside raw vertex AABB by 0.1 max-extent; no material inferred beyond observed geometry."
+        },
+        {
+          "id": "outside_1_1",
+          "point": [
+            -0.0004502250000000055,
+            0.18650291500000002,
+            0.005388304999999996
+          ],
+          "label": "free",
+          "region": "external_air",
+          "source": "Strictly outside raw vertex AABB by 0.1 max-extent; no material inferred beyond observed geometry."
+        },
+        {
+          "id": "outside_2_-1",
+          "point": [
+            -0.0004502250000000055,
+            -0.0013562399999999947,
+            -0.196821505
+          ],
+          "label": "free",
+          "region": "external_air",
+          "source": "Strictly outside raw vertex AABB by 0.1 max-extent; no material inferred beyond observed geometry."
+        },
+        {
+          "id": "outside_2_1",
+          "point": [
+            -0.0004502250000000055,
+            -0.0013562399999999947,
+            0.207598115
+          ],
+          "label": "free",
+          "region": "external_air",
+          "source": "Strictly outside raw vertex AABB by 0.1 max-extent; no material inferred beyond observed geometry."
+        },
+        {
+          "id": "cavity_0",
+          "point": [
+            -0.0004502250000000055,
+            -0.0013562399999999947,
+            -0.08
+          ],
+          "label": "free",
+          "region": "reviewed_cavity_air",
+          "source": "Reviewed U-shaped x/y vertical sections and horizontal perimeter; point lies well within visible open recess, away from walls. Unobstructed upward corridor is supporting evidence, not central-point auto-label.",
+          "checks": "open_vertical_corridor"
+        },
+        {
+          "id": "cavity_1",
+          "point": [
+            -0.0004502250000000055,
+            -0.0013562399999999947,
+            0
+          ],
+          "label": "free",
+          "region": "reviewed_cavity_air",
+          "source": "Reviewed U-shaped x/y vertical sections and horizontal perimeter; point lies well within visible open recess, away from walls. Unobstructed upward corridor is supporting evidence, not central-point auto-label.",
+          "checks": "open_vertical_corridor"
+        },
+        {
+          "id": "cavity_2",
+          "point": [
+            -0.0004502250000000055,
+            -0.0013562399999999947,
+            0.08
+          ],
+          "label": "free",
+          "region": "reviewed_cavity_air",
+          "source": "Reviewed U-shaped x/y vertical sections and horizontal perimeter; point lies well within visible open recess, away from walls. Unobstructed upward corridor is supporting evidence, not central-point auto-label.",
+          "checks": "open_vertical_corridor"
+        },
+        {
+          "id": "cavity_3",
+          "point": [
+            0.029549774999999993,
+            -0.0013562399999999947,
+            0.02
+          ],
+          "label": "free",
+          "region": "reviewed_cavity_air",
+          "source": "Reviewed U-shaped x/y vertical sections and horizontal perimeter; point lies well within visible open recess, away from walls. Unobstructed upward corridor is supporting evidence, not central-point auto-label.",
+          "checks": "open_vertical_corridor"
+        },
+        {
+          "id": "cavity_4",
+          "point": [
+            -0.030450225000000004,
+            -0.0013562399999999947,
+            0.02
+          ],
+          "label": "free",
+          "region": "reviewed_cavity_air",
+          "source": "Reviewed U-shaped x/y vertical sections and horizontal perimeter; point lies well within visible open recess, away from walls. Unobstructed upward corridor is supporting evidence, not central-point auto-label.",
+          "checks": "open_vertical_corridor"
+        },
+        {
+          "id": "cavity_5",
+          "point": [
+            -0.0004502250000000055,
+            0.028643760000000004,
+            0.04
+          ],
+          "label": "free",
+          "region": "reviewed_cavity_air",
+          "source": "Reviewed U-shaped x/y vertical sections and horizontal perimeter; point lies well within visible open recess, away from walls. Unobstructed upward corridor is supporting evidence, not central-point auto-label.",
+          "checks": "open_vertical_corridor"
+        },
+        {
+          "id": "cavity_6",
+          "point": [
+            -0.0004502250000000055,
+            -0.031356239999999994,
+            0.04
+          ],
+          "label": "free",
+          "region": "reviewed_cavity_air",
+          "source": "Reviewed U-shaped x/y vertical sections and horizontal perimeter; point lies well within visible open recess, away from walls. Unobstructed upward corridor is supporting evidence, not central-point auto-label.",
+          "checks": "open_vertical_corridor"
+        },
+        {
+          "id": "above_opening",
+          "point": [
+            -0.0004502250000000055,
+            -0.0013562399999999947,
+            0.19389647999999998
+          ],
+          "label": "free",
+          "region": "above_open_top",
+          "source": "Above highest raw mesh vertex; reviewed central opening has no cap.",
+          "checks": "open_vertical_corridor"
+        },
+        {
+          "id": "wall_0_negative_0",
+          "point": [
+            -0.09735130933638511,
+            -0.0013562399999999947,
+            0.005388304999999996
+          ],
+          "label": "unknown",
+          "region": "wall_material_unresolved",
+          "source": "Wall role is visible, but this cross-section does not establish material thickness. Offsets around the sheet are not certified material/free."
+        },
+        {
+          "id": "wall_0_negative_1",
+          "point": [
+            -0.09435130933638511,
+            -0.0013562399999999947,
+            0.005388304999999996
+          ],
+          "label": "unknown",
+          "region": "wall_material_unresolved",
+          "source": "Wall role is visible, but this cross-section does not establish material thickness. Offsets around the sheet are not certified material/free."
+        },
+        {
+          "id": "wall_0_negative_2",
+          "point": [
+            -0.09335130933638511,
+            -0.0013562399999999947,
+            0.005388304999999996
+          ],
+          "label": "unknown",
+          "region": "wall_material_unresolved",
+          "source": "Wall role is visible, but this cross-section does not establish material thickness. Offsets around the sheet are not certified material/free."
+        },
+        {
+          "id": "wall_0_negative_3",
+          "point": [
+            -0.0923513093363851,
+            -0.0013562399999999947,
+            0.005388304999999996
+          ],
+          "label": "unknown",
+          "region": "wall_material_unresolved",
+          "source": "Wall role is visible, but this cross-section does not establish material thickness. Offsets around the sheet are not certified material/free."
+        },
+        {
+          "id": "wall_0_negative_4",
+          "point": [
+            -0.0893513093363851,
+            -0.0013562399999999947,
+            0.005388304999999996
+          ],
+          "label": "unknown",
+          "region": "wall_material_unresolved",
+          "source": "Wall role is visible, but this cross-section does not establish material thickness. Offsets around the sheet are not certified material/free."
+        },
+        {
+          "id": "wall_0_positive_0",
+          "point": [
+            0.08936227141835967,
+            -0.0013562399999999947,
+            0.005388304999999996
+          ],
+          "label": "unknown",
+          "region": "wall_material_unresolved",
+          "source": "Wall role is visible, but this cross-section does not establish material thickness. Offsets around the sheet are not certified material/free."
+        },
+        {
+          "id": "wall_0_positive_1",
+          "point": [
+            0.09236227141835968,
+            -0.0013562399999999947,
+            0.005388304999999996
+          ],
+          "label": "unknown",
+          "region": "wall_material_unresolved",
+          "source": "Wall role is visible, but this cross-section does not establish material thickness. Offsets around the sheet are not certified material/free."
+        },
+        {
+          "id": "wall_0_positive_2",
+          "point": [
+            0.09336227141835968,
+            -0.0013562399999999947,
+            0.005388304999999996
+          ],
+          "label": "unknown",
+          "region": "wall_material_unresolved",
+          "source": "Wall role is visible, but this cross-section does not establish material thickness. Offsets around the sheet are not certified material/free."
+        },
+        {
+          "id": "wall_0_positive_3",
+          "point": [
+            0.09436227141835968,
+            -0.0013562399999999947,
+            0.005388304999999996
+          ],
+          "label": "unknown",
+          "region": "wall_material_unresolved",
+          "source": "Wall role is visible, but this cross-section does not establish material thickness. Offsets around the sheet are not certified material/free."
+        },
+        {
+          "id": "wall_0_positive_4",
+          "point": [
+            0.09736227141835968,
+            -0.0013562399999999947,
+            0.005388304999999996
+          ],
+          "label": "unknown",
+          "region": "wall_material_unresolved",
+          "source": "Wall role is visible, but this cross-section does not establish material thickness. Offsets around the sheet are not certified material/free."
+        },
+        {
+          "id": "wall_1_negative_0",
+          "point": [
+            -0.0004502250000000055,
+            -0.13649917622753505,
+            0.005388304999999996
+          ],
+          "label": "unknown",
+          "region": "wall_material_unresolved",
+          "source": "Wall role is visible, but this cross-section does not establish material thickness. Offsets around the sheet are not certified material/free."
+        },
+        {
+          "id": "wall_1_negative_1",
+          "point": [
+            -0.0004502250000000055,
+            -0.13349917622753504,
+            0.005388304999999996
+          ],
+          "label": "unknown",
+          "region": "wall_material_unresolved",
+          "source": "Wall role is visible, but this cross-section does not establish material thickness. Offsets around the sheet are not certified material/free."
+        },
+        {
+          "id": "wall_1_negative_2",
+          "point": [
+            -0.0004502250000000055,
+            -0.13249917622753504,
+            0.005388304999999996
+          ],
+          "label": "unknown",
+          "region": "wall_material_unresolved",
+          "source": "Wall role is visible, but this cross-section does not establish material thickness. Offsets around the sheet are not certified material/free."
+        },
+        {
+          "id": "wall_1_negative_3",
+          "point": [
+            -0.0004502250000000055,
+            -0.13149917622753504,
+            0.005388304999999996
+          ],
+          "label": "unknown",
+          "region": "wall_material_unresolved",
+          "source": "Wall role is visible, but this cross-section does not establish material thickness. Offsets around the sheet are not certified material/free."
+        },
+        {
+          "id": "wall_1_negative_4",
+          "point": [
+            -0.0004502250000000055,
+            -0.12849917622753504,
+            0.005388304999999996
+          ],
+          "label": "unknown",
+          "region": "wall_material_unresolved",
+          "source": "Wall role is visible, but this cross-section does not establish material thickness. Offsets around the sheet are not certified material/free."
+        },
+        {
+          "id": "wall_1_positive_0",
+          "point": [
+            -0.0004502250000000055,
+            0.13037614348638066,
+            0.005388304999999996
+          ],
+          "label": "unknown",
+          "region": "wall_material_unresolved",
+          "source": "Wall role is visible, but this cross-section does not establish material thickness. Offsets around the sheet are not certified material/free."
+        },
+        {
+          "id": "wall_1_positive_1",
+          "point": [
+            -0.0004502250000000055,
+            0.13337614348638066,
+            0.005388304999999996
+          ],
+          "label": "unknown",
+          "region": "wall_material_unresolved",
+          "source": "Wall role is visible, but this cross-section does not establish material thickness. Offsets around the sheet are not certified material/free."
+        },
+        {
+          "id": "wall_1_positive_2",
+          "point": [
+            -0.0004502250000000055,
+            0.13437614348638066,
+            0.005388304999999996
+          ],
+          "label": "unknown",
+          "region": "wall_material_unresolved",
+          "source": "Wall role is visible, but this cross-section does not establish material thickness. Offsets around the sheet are not certified material/free."
+        },
+        {
+          "id": "wall_1_positive_3",
+          "point": [
+            -0.0004502250000000055,
+            0.13537614348638066,
+            0.005388304999999996
+          ],
+          "label": "unknown",
+          "region": "wall_material_unresolved",
+          "source": "Wall role is visible, but this cross-section does not establish material thickness. Offsets around the sheet are not certified material/free."
+        },
+        {
+          "id": "wall_1_positive_4",
+          "point": [
+            -0.0004502250000000055,
+            0.13837614348638066,
+            0.005388304999999996
+          ],
+          "label": "unknown",
+          "region": "wall_material_unresolved",
+          "source": "Wall role is visible, but this cross-section does not establish material thickness. Offsets around the sheet are not certified material/free."
+        },
+        {
+          "id": "bottom_0",
+          "point": [
+            -0.0004502250000000055,
+            -0.0013562399999999947,
+            -0.163121351165676
+          ],
+          "label": "unknown",
+          "region": "bottom_material_unresolved",
+          "source": "One distinct bottom surface intersection; bottom material thickness is not recoverable from this local evidence."
+        },
+        {
+          "id": "bottom_1",
+          "point": [
+            -0.0004502250000000055,
+            -0.0013562399999999947,
+            -0.160121351165676
+          ],
+          "label": "unknown",
+          "region": "bottom_material_unresolved",
+          "source": "One distinct bottom surface intersection; bottom material thickness is not recoverable from this local evidence."
+        },
+        {
+          "id": "bottom_2",
+          "point": [
+            -0.0004502250000000055,
+            -0.0013562399999999947,
+            -0.159121351165676
+          ],
+          "label": "unknown",
+          "region": "bottom_material_unresolved",
+          "source": "One distinct bottom surface intersection; bottom material thickness is not recoverable from this local evidence."
+        },
+        {
+          "id": "bottom_3",
+          "point": [
+            -0.0004502250000000055,
+            -0.0013562399999999947,
+            -0.158121351165676
+          ],
+          "label": "unknown",
+          "region": "bottom_material_unresolved",
+          "source": "One distinct bottom surface intersection; bottom material thickness is not recoverable from this local evidence."
+        },
+        {
+          "id": "bottom_4",
+          "point": [
+            -0.0004502250000000055,
+            -0.0013562399999999947,
+            -0.155121351165676
+          ],
+          "label": "unknown",
+          "region": "bottom_material_unresolved",
+          "source": "One distinct bottom surface intersection; bottom material thickness is not recoverable from this local evidence."
+        },
+        {
+          "id": "rim_0",
+          "point": [
+            0.10027844885621823,
+            -0.0013562399999999947,
+            0.14019484499999996
+          ],
+          "label": "unknown",
+          "region": "rim_thinwall_unresolved",
+          "source": "Raw upper-wall/rim cross section is visible, but duplicate/open/nonmanifold geometry does not certify a material interval."
+        },
+        {
+          "id": "rim_1",
+          "point": [
+            0.10177844885621823,
+            -0.0013562399999999947,
+            0.14019484499999996
+          ],
+          "label": "unknown",
+          "region": "rim_thinwall_unresolved",
+          "source": "Raw upper-wall/rim cross section is visible, but duplicate/open/nonmanifold geometry does not certify a material interval."
+        },
+        {
+          "id": "rim_2",
+          "point": [
+            0.10227844885621823,
+            -0.0013562399999999947,
+            0.14019484499999996
+          ],
+          "label": "unknown",
+          "region": "rim_thinwall_unresolved",
+          "source": "Raw upper-wall/rim cross section is visible, but duplicate/open/nonmanifold geometry does not certify a material interval."
+        },
+        {
+          "id": "rim_3",
+          "point": [
+            0.10277844885621823,
+            -0.0013562399999999947,
+            0.14019484499999996
+          ],
+          "label": "unknown",
+          "region": "rim_thinwall_unresolved",
+          "source": "Raw upper-wall/rim cross section is visible, but duplicate/open/nonmanifold geometry does not certify a material interval."
+        },
+        {
+          "id": "rim_4",
+          "point": [
+            0.10427844885621823,
+            -0.0013562399999999947,
+            0.14019484499999996
+          ],
+          "label": "unknown",
+          "region": "rim_thinwall_unresolved",
+          "source": "Raw upper-wall/rim cross section is visible, but duplicate/open/nonmanifold geometry does not certify a material interval."
+        }
+      ],
+      "lines": [
+        {
+          "id": "wall_0_negative",
+          "start": [
+            -0.09735130933638511,
+            -0.0013562399999999947,
+            0.005388304999999996
+          ],
+          "end": [
+            -0.0893513093363851,
+            -0.0013562399999999947,
+            0.005388304999999996
+          ],
+          "region": "wall_thickness_unresolved",
+          "evidence": "Observed sheet intersection; no independently established paired material boundary."
+        },
+        {
+          "id": "wall_0_positive",
+          "start": [
+            0.08936227141835967,
+            -0.0013562399999999947,
+            0.005388304999999996
+          ],
+          "end": [
+            0.09736227141835968,
+            -0.0013562399999999947,
+            0.005388304999999996
+          ],
+          "region": "wall_thickness_unresolved",
+          "evidence": "Observed sheet intersection; no independently established paired material boundary."
+        },
+        {
+          "id": "wall_1_negative",
+          "start": [
+            -0.0004502250000000055,
+            -0.13649917622753505,
+            0.005388304999999996
+          ],
+          "end": [
+            -0.0004502250000000055,
+            -0.12849917622753504,
+            0.005388304999999996
+          ],
+          "region": "wall_thickness_unresolved",
+          "evidence": "Observed sheet intersection; no independently established paired material boundary."
+        },
+        {
+          "id": "wall_1_positive",
+          "start": [
+            -0.0004502250000000055,
+            0.13037614348638066,
+            0.005388304999999996
+          ],
+          "end": [
+            -0.0004502250000000055,
+            0.13837614348638066,
+            0.005388304999999996
+          ],
+          "region": "wall_thickness_unresolved",
+          "evidence": "Observed sheet intersection; no independently established paired material boundary."
+        },
+        {
+          "id": "bottom_short_line",
+          "start": [
+            -0.0004502250000000055,
+            -0.0013562399999999947,
+            -0.163121351165676
+          ],
+          "end": [
+            -0.0004502250000000055,
+            -0.0013562399999999947,
+            -0.155121351165676
+          ],
+          "region": "bottom_thickness_unresolved",
+          "evidence": "Central vertical line has one distinct floor hit; no lower/upper material pair."
+        },
+        {
+          "id": "rim_short_line",
+          "start": [
+            0.09927844885621823,
+            -0.0013562399999999947,
+            0.14019484499999996
+          ],
+          "end": [
+            0.10527844885621823,
+            -0.0013562399999999947,
+            0.14019484499999996
+          ],
+          "region": "rim_thinwall_unresolved",
+          "evidence": "Rim adjacent upper-wall hit; thickness deliberately not assigned."
+        }
+      ]
+    },
+    "smalltable": {
+      "mesh_sha256": "eb601c69e2aa96b2cf284dccdf63e2c49f192200f3dc298e5cd6143b42a25628",
+      "review": "Tabletop and leg interiors have paired, reviewed material boundaries. Tiny reverse component and global self-intersections remain unresolved. Local A feasibility only, not whole-object certification.",
+      "review_sections": [
+        {
+          "axis": 0,
+          "value": 0.002303119999999992,
+          "segment_count": 256
+        },
+        {
+          "axis": 1,
+          "value": -0.0013902799999999937,
+          "segment_count": 268
+        },
+        {
+          "axis": 2,
+          "value": -0.21896922750000003,
+          "segment_count": 177
+        },
+        {
+          "axis": 2,
+          "value": -0.08903272500000001,
+          "segment_count": 192
+        },
+        {
+          "axis": 2,
+          "value": 0.05946613500000003,
+          "segment_count": 472
+        },
+        {
+          "axis": 2,
+          "value": 0.09287837850000003,
+          "segment_count": 135
+        }
+      ],
+      "probes": [
+        {
+          "id": "outside_0_-1",
+          "point": [
+            -0.223855778,
+            -0.0013902799999999937,
+            -0.08903272500000001
+          ],
+          "label": "free",
+          "region": "external_air",
+          "source": "Strictly outside raw vertex AABB by 0.1 max-extent; no material inferred beyond observed geometry."
+        },
+        {
+          "id": "outside_0_1",
+          "point": [
+            0.228462018,
+            -0.0013902799999999937,
+            -0.08903272500000001
+          ],
+          "label": "free",
+          "region": "external_air",
+          "source": "Strictly outside raw vertex AABB by 0.1 max-extent; no material inferred beyond observed geometry."
+        },
+        {
+          "id": "outside_1_-1",
+          "point": [
+            0.002303119999999992,
+            -0.23101122799999999,
+            -0.08903272500000001
+          ],
+          "label": "free",
+          "region": "external_air",
+          "source": "Strictly outside raw vertex AABB by 0.1 max-extent; no material inferred beyond observed geometry."
+        },
+        {
+          "id": "outside_1_1",
+          "point": [
+            0.002303119999999992,
+            0.228230668,
+            -0.08903272500000001
+          ],
+          "label": "free",
+          "region": "external_air",
+          "source": "Strictly outside raw vertex AABB by 0.1 max-extent; no material inferred beyond observed geometry."
+        },
+        {
+          "id": "outside_2_-1",
+          "point": [
+            0.002303119999999992,
+            -0.0013902799999999937,
+            -0.312926458
+          ],
+          "label": "free",
+          "region": "external_air",
+          "source": "Strictly outside raw vertex AABB by 0.1 max-extent; no material inferred beyond observed geometry."
+        },
+        {
+          "id": "outside_2_1",
+          "point": [
+            0.002303119999999992,
+            -0.0013902799999999937,
+            0.134861008
+          ],
+          "label": "free",
+          "region": "external_air",
+          "source": "Strictly outside raw vertex AABB by 0.1 max-extent; no material inferred beyond observed geometry."
+        },
+        {
+          "id": "top_material_0",
+          "point": [
+            -0.07,
+            -0.07,
+            0.068
+          ],
+          "label": "material",
+          "region": "tabletop_material",
+          "source": "Reviewed tabletop upper/lower surfaces separated by about 32 mm at center (z=0.0528972,0.0850664); point selected between local surfaces with margin; no occupancy vote used.",
+          "checks": "paired_axis_brackets",
+          "bracket_axes": [
+            0,
+            1,
+            2
+          ]
+        },
+        {
+          "id": "top_material_1",
+          "point": [
+            0,
+            0,
+            0.068
+          ],
+          "label": "material",
+          "region": "tabletop_material",
+          "source": "Reviewed tabletop upper/lower surfaces separated by about 32 mm at center (z=0.0528972,0.0850664); point selected between local surfaces with margin; no occupancy vote used.",
+          "checks": "paired_axis_brackets",
+          "bracket_axes": [
+            0,
+            1,
+            2
+          ]
+        },
+        {
+          "id": "top_material_2",
+          "point": [
+            0.07,
+            0.07,
+            0.068
+          ],
+          "label": "material",
+          "region": "tabletop_material",
+          "source": "Reviewed tabletop upper/lower surfaces separated by about 32 mm at center (z=0.0528972,0.0850664); point selected between local surfaces with margin; no occupancy vote used.",
+          "checks": "paired_axis_brackets",
+          "bracket_axes": [
+            0,
+            1,
+            2
+          ]
+        },
+        {
+          "id": "top_material_3",
+          "point": [
+            -0.07,
+            0.07,
+            0.068
+          ],
+          "label": "material",
+          "region": "tabletop_material",
+          "source": "Reviewed tabletop upper/lower surfaces separated by about 32 mm at center (z=0.0528972,0.0850664); point selected between local surfaces with margin; no occupancy vote used.",
+          "checks": "paired_axis_brackets",
+          "bracket_axes": [
+            0,
+            1,
+            2
+          ]
+        },
+        {
+          "id": "top_material_4",
+          "point": [
+            0.07,
+            -0.07,
+            0.068
+          ],
+          "label": "material",
+          "region": "tabletop_material",
+          "source": "Reviewed tabletop upper/lower surfaces separated by about 32 mm at center (z=0.0528972,0.0850664); point selected between local surfaces with margin; no occupancy vote used.",
+          "checks": "paired_axis_brackets",
+          "bracket_axes": [
+            0,
+            1,
+            2
+          ]
+        },
+        {
+          "id": "leg_material_0",
+          "point": [
+            -0.164,
+            0.141,
+            -0.2189692275
+          ],
+          "label": "material",
+          "region": "leg_material",
+          "source": "Reviewed z=-0.218969 slice has four distinct closed rectangular leg outlines; point selected near the center of one outline. Local boundary brackets required.",
+          "checks": "paired_axis_brackets",
+          "bracket_axes": [
+            0,
+            1,
+            2
+          ]
+        },
+        {
+          "id": "leg_material_1",
+          "point": [
+            0.167,
+            0.157,
+            -0.2189692275
+          ],
+          "label": "material",
+          "region": "leg_material",
+          "source": "Reviewed z=-0.218969 slice has four distinct closed rectangular leg outlines; point selected near the center of one outline. Local boundary brackets required.",
+          "checks": "paired_axis_brackets",
+          "bracket_axes": [
+            0,
+            1,
+            2
+          ]
+        },
+        {
+          "id": "leg_material_2",
+          "point": [
+            -0.151,
+            -0.174,
+            -0.2189692275
+          ],
+          "label": "material",
+          "region": "leg_material",
+          "source": "Reviewed z=-0.218969 slice has four distinct closed rectangular leg outlines; point selected near the center of one outline. Local boundary brackets required.",
+          "checks": "paired_axis_brackets",
+          "bracket_axes": [
+            0,
+            1,
+            2
+          ]
+        },
+        {
+          "id": "leg_material_3",
+          "point": [
+            0.171,
+            -0.157,
+            -0.2189692275
+          ],
+          "label": "material",
+          "region": "leg_material",
+          "source": "Reviewed z=-0.218969 slice has four distinct closed rectangular leg outlines; point selected near the center of one outline. Local boundary brackets required.",
+          "checks": "paired_axis_brackets",
+          "bracket_axes": [
+            0,
+            1,
+            2
+          ]
+        },
+        {
+          "id": "under_table_0",
+          "point": [
+            0,
+            0,
+            0
+          ],
+          "label": "free",
+          "region": "under_table_air",
+          "source": "Reviewed x/y and lower z slices show empty space between the four legs, below the tabletop; not AABB-as-solid."
+        },
+        {
+          "id": "under_table_1",
+          "point": [
+            0.07,
+            0,
+            -0.1
+          ],
+          "label": "free",
+          "region": "under_table_air",
+          "source": "Reviewed x/y and lower z slices show empty space between the four legs, below the tabletop; not AABB-as-solid."
+        },
+        {
+          "id": "under_table_2",
+          "point": [
+            -0.07,
+            0,
+            -0.15
+          ],
+          "label": "free",
+          "region": "under_table_air",
+          "source": "Reviewed x/y and lower z slices show empty space between the four legs, below the tabletop; not AABB-as-solid."
+        },
+        {
+          "id": "under_table_3",
+          "point": [
+            0,
+            0.07,
+            -0.2
+          ],
+          "label": "free",
+          "region": "under_table_air",
+          "source": "Reviewed x/y and lower z slices show empty space between the four legs, below the tabletop; not AABB-as-solid."
+        },
+        {
+          "id": "tiny_component_0",
+          "point": [
+            0.17076606,
+            -0.15095827,
+            -0.190714465
+          ],
+          "label": "unknown",
+          "region": "tiny_component_semantics",
+          "source": "Small reverse-oriented closed component near a leg: geometry alone does not determine artifact, cavity or solid inclusion. No automatic outward-union truth."
+        },
+        {
+          "id": "tiny_component_1",
+          "point": [
+            0.17276606,
+            -0.15095827,
+            -0.190714465
+          ],
+          "label": "unknown",
+          "region": "tiny_component_semantics",
+          "source": "Small reverse-oriented closed component near a leg: geometry alone does not determine artifact, cavity or solid inclusion. No automatic outward-union truth."
+        },
+        {
+          "id": "tiny_component_2",
+          "point": [
+            0.17476606,
+            -0.15095827,
+            -0.190714465
+          ],
+          "label": "unknown",
+          "region": "tiny_component_semantics",
+          "source": "Small reverse-oriented closed component near a leg: geometry alone does not determine artifact, cavity or solid inclusion. No automatic outward-union truth."
+        },
+        {
+          "id": "table_surface_0",
+          "point": [
+            0.002303119999999992,
+            -0.0013902799999999937,
+            0.052897166956
+          ],
+          "label": "unknown",
+          "region": "boundary_tolerance",
+          "source": "On reviewed tabletop boundary; material/free classification deliberately undefined at the surface."
+        },
+        {
+          "id": "table_surface_1",
+          "point": [
+            0.002303119999999992,
+            -0.0013902799999999937,
+            0.08506636881
+          ],
+          "label": "unknown",
+          "region": "boundary_tolerance",
+          "source": "On reviewed tabletop boundary; material/free classification deliberately undefined at the surface."
+        }
+      ],
+      "lines": [
+        {
+          "id": "tabletop_thickness",
+          "start": [
+            0,
+            0,
+            0.04
+          ],
+          "end": [
+            0,
+            0,
+            0.1
+          ],
+          "region": "tabletop_material",
+          "evidence": "Reviewed paired upper/lower tabletop boundaries; line points themselves remain unlabeled unless in probe list."
+        }
+      ]
+    }
+  }
+}

@@ -4,6 +4,8 @@
 
 这个实验先回答一个比“它能否提高 diffusion/VLM”更基础、也更容易证伪的问题：**已知一只手的接触位置后，由重力方向和该接触点定义的极简截面几何，能否比随机搜索或中心对跖点更好地缩小另一只手的接触区域？**
 
+2026-09-09 证据边界：近期 material section/rim CPU 检查验证了固定截面与局部表面追踪，并识别 plasticbox 盒口开放间隙；未评估真实双手接触候选，不构成本 G0 的真实数据有效性证据。G0 仍独立于 U1 signed-SDF Gate。详见[局部检查与 G0 的关系](plasticbox-rim-connectivity-zh.md)。
+
 第一阶段不训练网络，不修改 diffusion，也不输入 VLM。它与动态 SDF 使用同一套 OMOMO 处理数据、物体坐标系和 sequence-disjoint 划分，但保持独立运行。这样失败时可以直接否定或修改几何假设，而不会把结果混入 SDF loss、diffusion 采样或提示词效果。
 
 ## 1. 现在实现的几何

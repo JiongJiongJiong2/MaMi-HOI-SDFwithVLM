@@ -194,6 +194,17 @@ remain BLOCKED. No novelty or U2/U3/U4 status change follows from this result.
 
 ## Reproduction and next action
 
+**2026-09-08 update:** this probe has now completed on AutoDL at `122d77b`:
+six tests PASS, 348.07 s, 145.48 MiB peak RSS, three mesh hashes unchanged.
+Local/server classifications match; distance differences are 0 m and winding
+differences at most 4.44e-16. The available upstream cleaned OBJ comparison
+below has also completed: face indices match canonical PLY exactly and mapped
+vertex residuals are below 8.72e-8 m. Those available inputs do not restore a
+second container material boundary. The reproduction command and original
+next-action description below are retained as history, not pending tasks.
+Continue with the [current decision](geometry-supervision-decision.md), not a
+repeat of the unchanged material/BPS diagnostics.
+
 After copying the new script and probe manifest into an unchanged b1fb418
 checkout (the existing triangle-helper file is already present), CPU replay is:
 

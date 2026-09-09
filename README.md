@@ -26,6 +26,13 @@ The main training and inference entrypoint is `train/trainer_control_GAPA_chois.
 
 ## Environment Setup
 
+Experimental U1 status (2026-09-08): **BLOCKED** by source SDF sign integrity
+and the legacy penetration evaluator's geometry dependency. Cache replay and
+CPU diagnostics passing do not authorize CUDA smoke or training. See the
+[geometry supervision decision](docs/experiments/geometry-supervision-decision.md)
+for the tested repair limits, current unsigned-query diagnostic, and acceptance
+conditions. This status does not change the original MaMi-HOI method or U2/U3/U4.
+
 The code is intended for a Linux CUDA environment. Python 3.8 is recommended, and the dependency versions below follow the tested CHOIS-style setup.
 
 Clone the repo and enter the project folder.

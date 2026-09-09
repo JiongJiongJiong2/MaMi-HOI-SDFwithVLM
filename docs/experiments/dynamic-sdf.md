@@ -1,6 +1,8 @@
 # Dynamic SDF 有效性实验：U0/U1 操作手册
 
-更新日期：2026-09-04
+更新日期：2026-09-08
+
+**当前状态：BLOCKED。** 部分 256³ source sign integrity 已 FAIL，当前 penetration evaluator 仍读取旧 source。plasticbox/trashcan 的 cache provenance/replay PASS；BPS 与 material probe 已双端 CPU 验证，均不能解除材料边界 blocker。以下训练命令是前置 Gate 通过后的协议，当前不得启动 CUDA smoke / U1 20k，也不得用相同 source 重建 cache。先执行[几何监督决策与验收顺序](geometry-supervision-decision.md)；三对象 prototype 通过不等于全对象训练放行。
 
 本实验只回答一个问题：从同一个 MaMi-HOI baseline checkpoint 开始，加入由当前预测手部与物体姿态驱动的 dynamic-SDF loss，是否改善生成结果的接触—穿透权衡，并且不损害 Hand JPE、Contact-F1 和整体动作质量。
 

@@ -85,6 +85,105 @@ def sample_sdf_at_points(sdf_grid, query_points, origin, voxel_size):
     return signed_dists
 
 
+def point_to_triangle_unsigned_distance(
+    points,
+    triangles,
+    point_chunk=32,
+    triangle_chunk=256,
+):
+    """Return exact unsigned point-to-triangle distances with gradients.
+
+    The implementation follows the same closed-plane plus closed-edge
+    formulation as the CPU diagnostic. The returned closest point is the
+    selected branch; medial-axis ties are not treated as a single smooth
+    function.
+    """
+    points = points.reshape(-1, 3)
+    triangles = triangles.reshape(-1, 3, 3)
+    device = points.device
+    dtype = points.dtype
+    distances = []
+    closest_points = []
+
+    for point_start in range(0, len(points), point_chunk):
+        q = points[point_start : point_start + point_chunk]
+        best = torch.full(
+            (len(q),),
+            float("inf"),
+            device=device,
+            dtype=dtype,
+        )
+        best_closest = torch.zeros_like(q)
+
+        for triangle_start in range(0, len(triangles), triangle_chunk):
+            tri = triangles[
+                triangle_start : triangle_start + triangle_chunk
+            ]
+            a, b, c = tri[:, 0], tri[:, 1], tri[:, 2]
+            normal = torch.cross(b - a, c - a, dim=-1)
+            nn = torch.einsum("ki,ki->k", normal, normal)
+            safe_nn = torch.where(nn > 0, nn, torch.ones_like(nn))
+            signed_height = torch.einsum(
+                "qki,ki->qk", q[:, None] - a, normal
+            ) / safe_nn
+            projection = q[:, None] - signed_height[..., None] * normal
+
+            inside = (nn > 0).unsqueeze(0).expand_as(signed_height).clone()
+            for u, v in ((a, b), (b, c), (c, a)):
+                edge = (v - u).unsqueeze(0)
+                side = torch.einsum(
+                    "qki,ki->qk",
+                    torch.cross(edge, projection - u, dim=-1),
+                    normal,
+                )
+                inside &= side >= -1e-12 * nn
+
+            local_best = torch.where(
+                inside,
+                signed_height.square() * nn,
+                torch.full_like(signed_height, float("inf")),
+            )
+            local_closest = projection.clone()
+
+            for u, v in ((a, b), (b, c), (c, a)):
+                edge = v - u
+                ee = torch.einsum("ki,ki->k", edge, edge)
+                t = torch.einsum(
+                    "qki,ki->qk", q[:, None] - u, edge
+                ) / torch.where(ee > 0, ee, torch.ones_like(ee))
+                edge_closest = u + torch.clamp(t, 0.0, 1.0)[..., None] * edge
+                delta = q[:, None] - edge_closest
+                d2 = torch.einsum("qki,qki->qk", delta, delta)
+                improve = d2 < local_best
+                local_best = torch.where(improve, d2, local_best)
+                local_closest = torch.where(
+                    improve[..., None],
+                    edge_closest,
+                    local_closest,
+                )
+
+            selected = local_best.argmin(dim=1)
+            value = local_best.gather(
+                1, selected[:, None]
+            ).squeeze(1)
+            selected_cp = local_closest.gather(
+                1,
+                selected[:, None, None].expand(-1, -1, 3),
+            ).squeeze(1)
+            improve = value < best
+            best = torch.where(improve, value, best)
+            best_closest = torch.where(
+                improve[:, None],
+                selected_cp,
+                best_closest,
+            )
+
+        distances.append(torch.sqrt(best))
+        closest_points.append(best_closest)
+
+    return torch.cat(distances), torch.cat(closest_points)
+
+
 def compute_sdf_gradients_fd(sdf_grid, query_points, origin, voxel_size, eps=1e-3):
     """Compute SDF gradients via central finite differences.
 

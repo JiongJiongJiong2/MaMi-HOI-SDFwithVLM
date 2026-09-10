@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "units": "m",
+  "protocol": "median triangle distance for gt_palm_contact queries from frozen BPS output; contact labels are calibration only",
+  "fallback": {
+    "left": 0.01875732969903919,
+    "right": 0.01875732969903919
+  },
+  "plasticbox": {
+    "left": 0.023515471989988948,
+    "right": 0.022877583578255742
+  },
+  "smalltable": {
+    "left": 0.018476593446466703,
+    "right": 0.019836193962810326
+  },
+  "trashcan": {
+    "left": 0.014844363833606862,
+    "right": 0.009872266794371531
+  }
+}

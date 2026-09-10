@@ -9,6 +9,7 @@ from manip.model.sdf_utils import (
     build_dynamic_sdf_prediction_query,
     object_sdf_in_bounds_mask,
     object_to_world_points,
+    point_to_triangle_unsigned_distance,
     project_to_so3,
     rotation_validity_statistics,
     sample_object_sdf_at_points,
@@ -255,6 +256,44 @@ class DynamicSDFTests(unittest.TestCase):
         valid = torch.ones(1, 3, 1)
         loss = sdf_trajectory_ranking_loss(values, values, zero_contact, valid)
         self.assertTrue(math.isclose(loss.item(), 0.0, abs_tol=1e-8))
+
+    def test_point_to_triangle_distance_matches_plane_and_edges(self):
+        points = torch.tensor([
+            [0.2, 0.2, 0.3],
+            [0.6, -0.2, 0.3],
+        ], dtype=torch.float32)
+        triangle = torch.tensor([
+            [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]
+        ], dtype=torch.float32)
+        distances, closest = point_to_triangle_unsigned_distance(
+            points,
+            triangle,
+        )
+        self.assertTrue(
+            torch.allclose(
+                distances,
+                torch.tensor([0.3, 0.3605551275]),
+                atol=1e-5,
+            )
+        )
+        self.assertTrue(torch.isfinite(closest).all())
+
+    def test_point_to_triangle_distance_is_differentiable(self):
+        points = torch.tensor(
+            [[0.2, 0.2, 0.3]],
+            requires_grad=True,
+            dtype=torch.float32,
+        )
+        triangle = torch.tensor([
+            [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]
+        ], dtype=torch.float32)
+        distance, _ = point_to_triangle_unsigned_distance(
+            points,
+            triangle,
+        )
+        distance.sum().backward()
+        self.assertTrue(torch.isfinite(points.grad).all())
+        self.assertGreater(points.grad.abs().sum().item(), 0.0)
 
 
 if __name__ == "__main__":

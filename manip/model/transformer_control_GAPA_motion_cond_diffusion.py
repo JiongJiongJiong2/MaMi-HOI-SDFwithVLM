@@ -31,6 +31,8 @@ from manip.model.sdf_utils import (
     sample_object_sdf_at_points,
     sdf_contact_losses,
     sdf_trajectory_ranking_loss,
+    point_to_triangle_unsigned_distance,
+    project_to_so3,
 )
 
 import time as PyTime
@@ -405,6 +407,9 @@ class ObjectCondGaussianDiffusion(nn.Module):
 
         self.use_object_keypoints = use_object_keypoints  # true
         self.use_dynamic_sdf = getattr(opt, 'use_dynamic_sdf', False)
+        self.use_unsigned_surface_contact = getattr(
+            opt, 'use_unsigned_surface_contact', False
+        )
         self.use_sdf_contrastive = getattr(opt, 'use_sdf_contrastive', False)
         self.sdf_penetration_weight = getattr(opt, 'sdf_penetration_weight', 1.0)
         self.sdf_contact_weight = getattr(opt, 'sdf_contact_weight', 1.0)
@@ -416,6 +421,8 @@ class ObjectCondGaussianDiffusion(nn.Module):
         )
         self.last_dynamic_sdf_stats = {}
         self.last_dynamic_sdf_grad_stats = {}
+        self.unsigned_clearance_targets = {}
+        self._unsigned_mesh_cache = {}
 
         obj_feats_dim = 256
         d_input_feats = 2*d_feats+obj_feats_dim # 440 + 256
@@ -1541,6 +1548,113 @@ class ObjectCondGaussianDiffusion(nn.Module):
                 )
         return loss_sdf, loss_contrastive, stats
 
+    def get_unsigned_mesh_triangles(self, ds, object_name):
+        if object_name not in self._unsigned_mesh_cache:
+            vertices, faces = ds.load_rest_pose_object_geometry(object_name)
+            triangles = torch.from_numpy(
+                np.asarray(vertices, dtype=np.float32)[
+                    np.asarray(faces, dtype=np.int64)
+                ]
+            ).contiguous()
+            self._unsigned_mesh_cache[object_name] = triangles
+        return self._unsigned_mesh_cache[object_name]
+
+    def compute_unsigned_surface_contact_loss(
+        self,
+        pred_palm_world,
+        pred_obj_rot_mat,
+        pred_obj_com_pos,
+        contact_mask,
+        valid_mask,
+        data_dict,
+        ds,
+    ):
+        """GT-calibrated unsigned surface clearance auxiliary loss."""
+        bs, num_steps, num_hands, _ = pred_palm_world.shape
+        obj_names = data_dict["obj_name"]
+        fallback = self.unsigned_clearance_targets.get(
+            "fallback",
+            {"left": 0.0, "right": 0.0},
+        )
+        batch_losses = []
+        observed_distances = []
+        valid_query_count = 0
+        pred_obj_rot_for_query = project_to_so3(pred_obj_rot_mat)
+
+        for batch_index in range(bs):
+            object_name = str(obj_names[batch_index])
+            triangles = self.get_unsigned_mesh_triangles(
+                ds, object_name
+            ).to(pred_palm_world.device)
+            temporal_valid = valid_mask[batch_index].squeeze(-1) > 0.5
+            hand_contact = contact_mask[batch_index] > 0.5
+            selected = (temporal_valid.unsqueeze(-1) & hand_contact).nonzero(
+                as_tuple=False
+            )
+            if not len(selected):
+                batch_losses.append(
+                    pred_palm_world[batch_index].sum() * 0.0
+                )
+                continue
+
+            frames = selected[:, 0]
+            hands = selected[:, 1]
+            world_points = pred_palm_world[
+                batch_index, frames, hands
+            ]
+            rotations = pred_obj_rot_for_query[batch_index, frames]
+            translations = pred_obj_com_pos[batch_index, frames]
+            object_points = torch.matmul(
+                world_points - translations,
+                rotations,
+            )
+            distances, _ = point_to_triangle_unsigned_distance(
+                object_points,
+                triangles,
+                point_chunk=32,
+                triangle_chunk=256,
+            )
+
+            object_targets = self.unsigned_clearance_targets.get(
+                object_name,
+                fallback,
+            )
+            target_values = torch.where(
+                hands == 0,
+                torch.full_like(
+                    distances,
+                    float(object_targets.get("left", fallback["left"])),
+                ),
+                torch.full_like(
+                    distances,
+                    float(object_targets.get("right", fallback["right"])),
+                ),
+            )
+            loss = F.smooth_l1_loss(distances, target_values, reduction="mean")
+            batch_losses.append(loss)
+            observed_distances.append(distances.detach())
+            valid_query_count += int(len(distances))
+
+        if batch_losses:
+            loss = torch.stack(batch_losses).mean()
+        else:
+            loss = pred_palm_world.sum() * 0.0
+        if observed_distances:
+            observed = torch.cat(observed_distances)
+            distance_mean = observed.mean()
+            distance_p95 = torch.quantile(observed, 0.95)
+        else:
+            distance_mean = loss.detach()
+            distance_p95 = loss.detach()
+        stats = {
+            "unsigned_contact_loss": loss.detach(),
+            "unsigned_contact_pred_distance_mean": distance_mean,
+            "unsigned_contact_pred_distance_p95": distance_p95,
+            "unsigned_contact_query_count": valid_query_count,
+        }
+        self.last_unsigned_surface_stats = stats
+        return loss, stats
+
     def p_losses(self, x_start, x_cond, t, language_embedding=None, noise=None, \
         padding_mask=None, rest_human_offsets=None, data_dict=None, ds=None,
         local_sdf_grid=None, local_sdf_origin=None, local_sdf_voxel_size=None, hand_query_points=None,
@@ -1580,6 +1694,7 @@ class ObjectCondGaussianDiffusion(nn.Module):
         loss_object = loss_reshaped[:, :, :12] # [32, 120, 12]
         loss_sdf = loss.new_zeros(())
         loss_sdf_contrastive = loss.new_zeros(())
+        loss_unsigned_contact = loss.new_zeros(())
 
         if loss_reshaped.shape[-1] == 12: # objetc motion only
             loss_human = torch.zeros(1)
@@ -1723,9 +1838,35 @@ class ObjectCondGaussianDiffusion(nn.Module):
                         valid_mask.float(),
                     )
 
+            if self.use_unsigned_surface_contact:
+                if padding_mask is None:
+                    unsigned_valid_mask = torch.ones(
+                        bs, num_steps, 1,
+                        device=model_out.device,
+                        dtype=model_out.dtype,
+                    )
+                else:
+                    unsigned_valid_mask = padding_mask[
+                        :, 0, 1:
+                    ].to(model_out.dtype).unsqueeze(-1)
+                unsigned_contact_mask = target[:, :, -4:-2].clamp(
+                    0, 1
+                ).to(model_out.dtype)
+                pred_palm_world = human_jnts[:, :, 22:24, :]
+                with torch.cuda.amp.autocast(enabled=False):
+                    loss_unsigned_contact, _ = self.compute_unsigned_surface_contact_loss(
+                        pred_palm_world.float(),
+                        pred_obj_rot_mat.float(),
+                        pred_obj_com_pos.float(),
+                        unsigned_contact_mask.float(),
+                        unsigned_valid_mask.float(),
+                        data_dict,
+                        ds,
+                    )
+
             return loss.mean(), loss_object.mean(), loss_human.mean(), \
                 foot_loss.mean(), fk_loss.mean(), loss_obj_pts.mean(), \
-                loss_sdf, loss_sdf_contrastive
+                loss_sdf, loss_sdf_contrastive, loss_unsigned_contact
 
         return loss.mean(), loss_object.mean(), loss_human.mean()
 
@@ -1777,7 +1918,7 @@ class ObjectCondGaussianDiffusion(nn.Module):
 
         if self.use_object_keypoints:
             curr_loss, curr_loss_obj, curr_loss_human, curr_loss_feet, curr_loss_fk, curr_loss_obj_pts, \
-            curr_loss_sdf, curr_loss_sdf_contrastive = \
+            curr_loss_sdf, curr_loss_sdf_contrastive, curr_loss_unsigned_contact = \
                         self.p_losses(x_start, x_cond, t, \
                         language_embedding=language_embedding, padding_mask=padding_mask, \
                         rest_human_offsets=rest_human_offsets, data_dict=data_dict, ds=ds,
@@ -1787,7 +1928,7 @@ class ObjectCondGaussianDiffusion(nn.Module):
                         object_sdf_extents=object_sdf_extents)
 
             return curr_loss, curr_loss_obj, curr_loss_human, curr_loss_feet, curr_loss_fk, curr_loss_obj_pts, \
-                curr_loss_sdf, curr_loss_sdf_contrastive
+                curr_loss_sdf, curr_loss_sdf_contrastive, curr_loss_unsigned_contact
         else:
             curr_loss, curr_loss_obj, curr_loss_human = self.p_losses(x_start, x_cond, t, \
                         language_embedding=language_embedding, padding_mask=padding_mask, \

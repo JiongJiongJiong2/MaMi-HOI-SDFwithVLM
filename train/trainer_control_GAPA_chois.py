@@ -426,13 +426,30 @@ class Trainer(object):
 
         self.use_local_sdf = self.opt.use_local_sdf
         self.use_dynamic_sdf = self.opt.use_dynamic_sdf
+        self.use_unsigned_surface_contact = self.opt.use_unsigned_surface_contact
         self.use_sdf_contrastive = self.opt.use_sdf_contrastive
         self.loss_w_sdf = self.opt.loss_w_sdf
         self.loss_w_sdf_contrastive = self.opt.loss_w_sdf_contrastive
+        self.loss_w_unsigned_surface_contact = (
+            self.opt.loss_w_unsigned_surface_contact
+        )
         if self.use_dynamic_sdf and self.use_local_sdf:
             raise ValueError("Dynamic SDF and legacy local SDF cannot be enabled together.")
+        if self.use_dynamic_sdf and self.use_unsigned_surface_contact:
+            raise ValueError(
+                "Signed dynamic SDF and unsigned surface contact cannot be "
+                "enabled together."
+            )
         if self.use_sdf_contrastive and not self.use_dynamic_sdf:
             raise ValueError("--use_sdf_contrastive requires --use_dynamic_sdf.")
+        self.unsigned_clearance_targets = {}
+        if self.use_unsigned_surface_contact:
+            clearance_path = Path(self.opt.unsigned_clearance_json)
+            if not clearance_path.exists():
+                raise FileNotFoundError(clearance_path)
+            self.unsigned_clearance_targets = json.loads(
+                clearance_path.read_text(encoding="utf-8")
+            )
 
         self.test_unseen_objects = self.opt.test_unseen_objects
 
@@ -455,6 +472,10 @@ class Trainer(object):
         self.loss_w_feet = self.opt.loss_w_feet
         self.loss_w_fk = self.opt.loss_w_fk
         self.loss_w_obj_pts = self.opt.loss_w_obj_pts
+
+        self.model.unsigned_clearance_targets = (
+            self.unsigned_clearance_targets
+        )
 
         if self.add_language_condition:
             clip_version = 'ViT-B/32'
@@ -729,6 +750,7 @@ class Trainer(object):
         init_step = self.step
         smoke_started_at = time.perf_counter()
         smoke_records = []
+        unsigned_smoke_records = []
         smoke_validation_records = []
         split_diagnostics_path = (
             Path(self.results_folder).parent
@@ -737,10 +759,16 @@ class Trainer(object):
         if self.use_dynamic_sdf:
             split_diagnostics_path.write_text('', encoding='utf-8')
         if self.opt.smoke_test:
-            if not self.use_dynamic_sdf or not self.opt.dynamic_sdf_diagnostics:
+            if not (
+                (
+                    self.use_dynamic_sdf
+                    and self.opt.dynamic_sdf_diagnostics
+                )
+                or self.use_unsigned_surface_contact
+            ):
                 raise ValueError(
-                    "--smoke_test requires --use_dynamic_sdf and "
-                    "--dynamic_sdf_diagnostics"
+                    "--smoke_test requires signed dynamic-SDF diagnostics "
+                    "or unsigned surface-contact diagnostics"
                 )
             if self.finetune_provenance is None:
                 raise ValueError("--smoke_test requires --finetune_model")
@@ -819,7 +847,7 @@ class Trainer(object):
                         language_input = language_input.to(data.device)
 
                         loss_diffusion, loss_obj, loss_human, loss_feet, loss_fk, loss_obj_pts, \
-                        loss_sdf, loss_sdf_contrastive = \
+                        loss_sdf, loss_sdf_contrastive, loss_unsigned_contact = \
                         self.model(data, ori_data_cond, cond_mask, padding_mask, \
                         language_input=language_input, \
                         rest_human_offsets=rest_human_offsets, ds=self.ds, data_dict=data_dict,
@@ -830,7 +858,7 @@ class Trainer(object):
                     else:
                         if self.use_object_keypoints:
                             loss_diffusion, loss_obj, loss_human, loss_feet, loss_fk, loss_obj_pts, \
-                            loss_sdf, loss_sdf_contrastive = self.model(
+                            loss_sdf, loss_sdf_contrastive, loss_unsigned_contact = self.model(
                                 data, ori_data_cond, cond_mask, padding_mask,
                                 rest_human_offsets=rest_human_offsets, ds=self.ds, data_dict=data_dict,
                                 local_sdf_grid=local_sdf_grid, local_sdf_origin=local_sdf_origin,
@@ -849,7 +877,8 @@ class Trainer(object):
                         loss = loss_diffusion + self.loss_w_feet * loss_feet + \
                             self.loss_w_fk * loss_fk + self.loss_w_obj_pts * loss_obj_pts + \
                             self.loss_w_sdf * loss_sdf + \
-                            self.loss_w_sdf_contrastive * loss_sdf_contrastive
+                            self.loss_w_sdf_contrastive * loss_sdf_contrastive + \
+                            self.loss_w_unsigned_surface_contact * loss_unsigned_contact
                     else:
                         loss = loss_diffusion
 
@@ -900,6 +929,25 @@ class Trainer(object):
                                 ),
                                 'stats': dynamic_stats,
                                 'query_gradients': gradient_stats,
+                            })
+
+                    if self.use_unsigned_surface_contact:
+                        unsigned_stats = scalarize_tensor_dict(
+                            self.model.last_unsigned_surface_stats
+                        )
+                        if not torch.isfinite(loss_unsigned_contact).item():
+                            raise FloatingPointError(
+                                "Unsigned surface-contact loss is non-finite"
+                            )
+                        if self.opt.smoke_test:
+                            unsigned_smoke_records.append({
+                                'step': int(idx),
+                                'accumulation': int(i),
+                                'total_loss': float(loss.detach().item()),
+                                'unsigned_contact_loss': float(
+                                    loss_unsigned_contact.detach().item()
+                                ),
+                                'stats': unsigned_stats,
                             })
 
                     # check gradients
@@ -1040,7 +1088,7 @@ class Trainer(object):
                         language_input = language_input.to(data.device)
 
                         val_loss_diffusion, val_loss_obj, val_loss_human, val_loss_feet, val_loss_fk, val_loss_obj_pts, \
-                        val_loss_sdf, val_loss_sdf_contrastive = \
+                        val_loss_sdf, val_loss_sdf_contrastive, val_loss_unsigned_contact = \
                                         self.model(data, ori_data_cond, cond_mask, padding_mask, \
                                         language_input=language_input, \
                                         rest_human_offsets=rest_human_offsets, \
@@ -1054,7 +1102,7 @@ class Trainer(object):
                     else:
                         if self.use_object_keypoints:
                             val_loss_diffusion, val_loss_obj, val_loss_human, val_loss_feet, val_loss_fk, \
-                            val_loss_obj_pts, val_loss_sdf, val_loss_sdf_contrastive = self.model(
+                            val_loss_obj_pts, val_loss_sdf, val_loss_sdf_contrastive, val_loss_unsigned_contact = self.model(
                                 data, ori_data_cond, cond_mask, padding_mask,
                                 rest_human_offsets=rest_human_offsets,
                                 ds=self.val_ds, data_dict=val_data_dict,
@@ -1075,7 +1123,8 @@ class Trainer(object):
                     val_loss = val_loss_diffusion + self.loss_w_feet * val_loss_feet + \
                         self.loss_w_fk * val_loss_fk + self.loss_w_obj_pts * val_loss_obj_pts + \
                         self.loss_w_sdf * val_loss_sdf + \
-                        self.loss_w_sdf_contrastive * val_loss_sdf_contrastive
+                        self.loss_w_sdf_contrastive * val_loss_sdf_contrastive + \
+                        self.loss_w_unsigned_surface_contact * val_loss_unsigned_contact
                     if self.use_dynamic_sdf:
                         val_dynamic_stats = scalarize_tensor_dict(
                             self.model.last_dynamic_sdf_stats
@@ -1094,6 +1143,16 @@ class Trainer(object):
                             smoke_validation_records.append({
                                 'step': int(self.step),
                                 'stats': val_dynamic_stats,
+                            })
+
+                    if self.use_unsigned_surface_contact:
+                        val_unsigned_stats = scalarize_tensor_dict(
+                            self.model.last_unsigned_surface_stats
+                        )
+                        if self.opt.smoke_test:
+                            smoke_validation_records.append({
+                                'step': int(self.step),
+                                'stats': val_unsigned_stats,
                             })
 
                     if self.use_wandb:
@@ -1150,6 +1209,134 @@ class Trainer(object):
         print(f'training complete; saved final checkpoint at step {self.step}')
 
         if self.opt.smoke_test:
+            if self.use_unsigned_surface_contact:
+                unsigned_errors = []
+                if self.step != self.train_num_steps:
+                    unsigned_errors.append(
+                        f"completed step {self.step}, expected {self.train_num_steps}"
+                    )
+                if not unsigned_smoke_records:
+                    unsigned_errors.append(
+                        "no unsigned surface-contact records were captured"
+                    )
+                if unsigned_smoke_records and not any(
+                    abs(record['unsigned_contact_loss']) > 1e-12
+                    for record in unsigned_smoke_records
+                ):
+                    unsigned_errors.append(
+                        "unsigned surface-contact loss was identically zero"
+                    )
+                if unsigned_smoke_records and not any(
+                    int(record['stats'].get(
+                        'unsigned_contact_query_count', 0
+                    )) > 0
+                    for record in unsigned_smoke_records
+                ):
+                    unsigned_errors.append(
+                        "unsigned surface-contact query count was zero"
+                    )
+                if unsigned_smoke_records and not all(
+                    np.isfinite(record['total_loss'])
+                    and np.isfinite(record['unsigned_contact_loss'])
+                    for record in unsigned_smoke_records
+                ):
+                    unsigned_errors.append(
+                        "unsigned surface-contact or total loss was non-finite"
+                    )
+
+                reload_verified = False
+                try:
+                    reloaded = torch.load(
+                        final_checkpoint_path,
+                        map_location='cpu',
+                    )
+                    required = {'step', 'model', 'ema', 'scaler'}
+                    missing = required.difference(reloaded)
+                    if missing:
+                        raise KeyError(
+                            f"missing checkpoint keys: {sorted(missing)}"
+                        )
+                    self.model.load_state_dict(reloaded['model'], strict=True)
+                    self.ema.load_state_dict(reloaded['ema'], strict=True)
+                    self.scaler.load_state_dict(reloaded['scaler'])
+                    if int(reloaded['step']) != self.step:
+                        raise ValueError(
+                            f"reloaded step {reloaded['step']} != {self.step}"
+                        )
+                    reload_verified = True
+                except Exception as error:
+                    unsigned_errors.append(
+                        f"checkpoint reload failed: {error}"
+                    )
+
+                elapsed_seconds = time.perf_counter() - smoke_started_at
+                report = {
+                    'status': 'PASS' if not unsigned_errors else 'FAIL',
+                    'errors': unsigned_errors,
+                    'finetune_provenance': self.finetune_provenance,
+                    'train_num_steps': int(self.train_num_steps),
+                    'completed_steps': int(self.step),
+                    'total_loss_finite': all(
+                        np.isfinite(record['total_loss'])
+                        for record in unsigned_smoke_records
+                    ),
+                    'unsigned_contact_loss_finite': all(
+                        np.isfinite(record['unsigned_contact_loss'])
+                        for record in unsigned_smoke_records
+                    ),
+                    'unsigned_contact_loss_nonzero': any(
+                        abs(record['unsigned_contact_loss']) > 1e-12
+                        for record in unsigned_smoke_records
+                    ),
+                    'unsigned_contact_query_count_positive': any(
+                        int(record['stats'].get(
+                            'unsigned_contact_query_count', 0
+                        )) > 0
+                        for record in unsigned_smoke_records
+                    ),
+                    'elapsed_seconds': elapsed_seconds,
+                    'throughput_steps_per_second': (
+                        self.step / elapsed_seconds
+                        if elapsed_seconds > 0
+                        else None
+                    ),
+                    'peak_gpu_memory_bytes': int(
+                        torch.cuda.max_memory_allocated()
+                    ),
+                    'checkpoint_path': os.path.abspath(
+                        final_checkpoint_path
+                    ),
+                    'checkpoint_reload_verified': reload_verified,
+                    'diagnostic_record_count': len(
+                        unsigned_smoke_records
+                    ),
+                    'validation_diagnostics': (
+                        smoke_validation_records
+                    ),
+                }
+                report_path = (
+                    Path(self.results_folder).parent
+                    / 'smoke_test_report.json'
+                )
+                records_path = (
+                    Path(self.results_folder).parent
+                    / 'unsigned_surface_contact_diagnostics.jsonl'
+                )
+                with open(records_path, 'w', encoding='utf-8') as handle:
+                    for record in unsigned_smoke_records:
+                        handle.write(
+                            json.dumps(record, sort_keys=True) + '\n'
+                        )
+                with open(report_path, 'w', encoding='utf-8') as handle:
+                    json.dump(report, handle, indent=2, sort_keys=True)
+                print(f"Smoke report: {report_path}")
+                if unsigned_errors:
+                    raise RuntimeError(
+                        "U1-U smoke test failed: "
+                        + "; ".join(unsigned_errors)
+                    )
+                return
+
             smoke_errors = []
             if self.step != self.train_num_steps:
                 smoke_errors.append(
@@ -1624,6 +1811,76 @@ class Trainer(object):
         return dest_res_for_eval_npz_folder, dest_metric_folder, dest_out_vis_folder, \
             dest_out_gt_vis_folder, dest_out_obj_folder, dest_out_text_json_folder
 
+    def export_predicted_hand_queries(
+        self,
+        seq_name,
+        object_name,
+        start_frame,
+        hand_jpos,
+        obj_com_pos,
+        obj_rot_mat,
+    ):
+        """Export predicted-only hand/object queries for later diagnostics.
+
+        GT contact labels are deliberately omitted. The exporter records
+        predicted world hands, predicted object pose, and the same
+        ``(p_world - p_com) @ R`` canonical query convention used by the
+        existing BPS/unsigned diagnostic.
+        """
+        hand_jpos = hand_jpos.detach().cpu().numpy()
+        obj_com_pos = obj_com_pos.detach().cpu().numpy()
+        obj_rot_mat = obj_rot_mat.detach().cpu().numpy()
+        if torch.is_tensor(start_frame):
+            start_frame = int(start_frame.detach().cpu().item())
+        else:
+            start_frame = int(start_frame)
+        if torch.is_tensor(seq_name):
+            seq_name = str(seq_name.item())
+        if torch.is_tensor(object_name):
+            object_name = str(object_name.item())
+
+        actual_len = min(hand_jpos.shape[0], obj_com_pos.shape[0])
+        rows = []
+        for local_frame in range(actual_len):
+            local_queries = (
+                hand_jpos[local_frame, [22, 23]]
+                - obj_com_pos[local_frame]
+            ) @ obj_rot_mat[local_frame]
+            for hand_offset, hand_name in enumerate(("left", "right")):
+                hand_index = 22 + hand_offset
+                rows.append(
+                    {
+                        "source": "predicted_model",
+                        "sequence": seq_name,
+                        "object": object_name,
+                        "frame": start_frame + local_frame,
+                        "local_frame": local_frame,
+                        "hand": hand_name,
+                        "joint": hand_index,
+                        "hand_world_x": float(hand_jpos[local_frame, hand_index, 0]),
+                        "hand_world_y": float(hand_jpos[local_frame, hand_index, 1]),
+                        "hand_world_z": float(hand_jpos[local_frame, hand_index, 2]),
+                        "object_com_x": float(obj_com_pos[local_frame, 0]),
+                        "object_com_y": float(obj_com_pos[local_frame, 1]),
+                        "object_com_z": float(obj_com_pos[local_frame, 2]),
+                        "object_rotation_row_major": [
+                            float(value)
+                            for value in obj_rot_mat[local_frame].reshape(-1).tolist()
+                        ],
+                        "canonical_x": float(local_queries[hand_offset, 0]),
+                        "canonical_y": float(local_queries[hand_offset, 1]),
+                        "canonical_z": float(local_queries[hand_offset, 2]),
+                    }
+                )
+        output_dir = Path(self.save_res_folder)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        output_path = output_dir / "predicted_hand_object_queries.jsonl"
+        with output_path.open("a", encoding="utf-8") as handle:
+            for row in rows:
+                handle.write(
+                    json.dumps(row, sort_keys=True, allow_nan=False) + "\n"
+                )
+
     def cond_sample_res(self):
         import time
         import torch
@@ -1830,6 +2087,15 @@ class Trainer(object):
             self.gen_vis_res_generic(all_res_list, val_data_dict, milestone, cond_mask, \
             curr_object_name=object_name_list[0], vis_tag=vis_tag, \
             dest_out_vid_path=curr_dest_out_vid_path, dest_mesh_vis_folder=curr_dest_out_mesh_folder)
+
+            self.export_predicted_hand_queries(
+                seq_name_list[0],
+                object_name_list[0],
+                start_frame_idx_list[0],
+                pred_human_jnts_list[0],
+                pred_obj_com_pos_list[0],
+                pred_obj_rot_mat_list[0],
+            )
 
             # Save results to npz files
             # Save global joint positions to npz files for evaluation (R_precition, FID, etc)
@@ -4389,6 +4655,23 @@ def parse_opt():
     parser.add_argument('--sdf_contrast_margin', type=float, default=0.02)
     parser.add_argument('--sdf_penetration_value', type=float, default=-0.03)
     parser.add_argument('--sdf_floating_value', type=float, default=0.10)
+    parser.add_argument(
+        "--use_unsigned_surface_contact",
+        action="store_true",
+        default=False,
+        help="Enable GT-calibrated unsigned triangle surface-contact loss.",
+    )
+    parser.add_argument(
+        "--unsigned_clearance_json",
+        type=str,
+        default="",
+        help="JSON of per-object/per-hand GT clearance medians.",
+    )
+    parser.add_argument(
+        '--loss_w_unsigned_surface_contact',
+        type=float,
+        default=1.0,
+    )
 
     parser.add_argument("--test_unseen_objects", action="store_true")
 

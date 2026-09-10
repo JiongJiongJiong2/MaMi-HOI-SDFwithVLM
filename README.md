@@ -26,6 +26,13 @@ The main training and inference entrypoint is `train/trainer_control_GAPA_chois.
 
 ## Environment Setup
 
+G0 status (2026-09-10): real validation execution PASS; original sectional-prior
+efficacy gate FAIL. A fixed spatial-diversity ablation improves coverage but
+does not establish a reliable advantage over the equally treated baseline.
+Current work prioritizes contact-region prediction before contact optimization;
+held-out test and training remain unrun. See the
+[Chinese validation report](docs/experiments/g0-validation-20260910-zh.md).
+
 Experimental U1 status (2026-09-08): **BLOCKED** by source SDF sign integrity
 and the legacy penetration evaluator's geometry dependency. Cache replay and
 CPU diagnostics passing do not authorize CUDA smoke or training. See the

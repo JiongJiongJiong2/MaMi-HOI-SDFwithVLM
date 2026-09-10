@@ -1,5 +1,7 @@
 # U1 geometry supervision decision — 2026-09-08
 
+2026-09-10 前置验证收口：BPS 的角色仍为 unsigned 表面参考，不能生成材料 sign。已有三对象 material probe、上游几何、截面及盒口路径检查足以判定：**当前输入和已测试低成本处理不满足原 signed U1 的前置条件，停止重复诊断，不生成同源 cache，不开训。** 这不是宣布所有 A 方法不可能；A 的重启条件是独立材料边界证据或另行明确的几何建模假设。contact-only 或假定壁厚均会改变当前实验定义，不能默认为用户原先授权的可信 signed A。
+
 2026-09-09 截面证据更新：**优先 A 不变，没有切换 B。** plasticbox 盒口部分分离双表面已追踪到原始三角面，不能把所有双线都归为重复面；trashcan 部分水平截面剥离悬挂线后可恢复单环，但尚无材料内外双环。“材料边界未建立”不等于“所有区域均无第二表面”。详见[中文截面定量报告](material-sections-audit-zh.md)。本次只更新证据，不解除 Gate，也不授权 source/cache 重建。
 
 **Original signed U1: BLOCKED.** Pause regeneration of plasticbox/trashcan from

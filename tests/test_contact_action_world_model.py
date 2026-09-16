@@ -28,6 +28,7 @@ from scripts.evaluate_contact_protocol_v0_dense import (
     contact_counts_from_min_distances,
 )
 from scripts.run_contact_action_chunk_correction import (
+    candidate_selection_score,
     make_action_candidates,
 )
 
@@ -120,14 +121,97 @@ class ContactActionModelTests(unittest.TestCase):
         )
 
         self.assertEqual(teacher_output["states"].shape, (2, 4, STATE_DIM))
+        self.assertEqual(
+            teacher_output["contact_probability"].shape,
+            (2, 4, 2),
+        )
         self.assertEqual(teacher_output["contact_logits"].shape, (2, 4, 2))
+        self.assertEqual(teacher_output["residuals"].shape, (2, 4, 32))
         self.assertTrue(torch.isfinite(free_output["states"]).all())
+        self.assertTrue(
+            (
+                teacher_output["contact_probability"] >= 0.0
+            ).all()
+        )
+        self.assertTrue(
+            (
+                teacher_output["contact_probability"] <= 1.0
+            ).all()
+        )
         self.assertFalse(
             torch.allclose(
                 free_output["states"],
                 zero_output["states"],
             )
         )
+
+    def test_learned_residual_switch_and_palm_mask(self):
+        torch.manual_seed(3)
+        model = ContactActionTransition(
+            hidden_size=32,
+            residual_scale=0.05,
+            residual_mask="palm",
+        )
+        with torch.no_grad():
+            model.head[-1].weight.normal_(0.0, 0.5)
+            model.head[-1].bias.normal_(0.0, 0.5)
+        state_history = torch.zeros(1, 3, STATE_DIM)
+        state_history[..., 26] = 1.0
+        action_history = torch.zeros(1, 3, ACTION_DIM)
+        future_actions = torch.zeros(1, 4, ACTION_DIM)
+        learned = model.rollout(
+            state_history,
+            action_history,
+            future_actions,
+            teacher_states=None,
+            teacher_forcing_ratio=0.0,
+            use_learned_residual=True,
+        )
+        analytic = model.rollout(
+            state_history,
+            action_history,
+            future_actions,
+            teacher_states=None,
+            teacher_forcing_ratio=0.0,
+            use_learned_residual=False,
+        )
+        self.assertTrue(torch.equal(
+            learned["residuals"][..., 0:9],
+            torch.zeros_like(learned["residuals"][..., 0:9]),
+        ))
+        self.assertTrue(torch.equal(
+            learned["residuals"][..., 21:24],
+            torch.zeros_like(learned["residuals"][..., 21:24]),
+        ))
+        self.assertFalse(torch.allclose(
+            learned["states"],
+            analytic["states"],
+        ))
+        self.assertTrue(torch.isfinite(learned["states"]).all())
+
+    def test_zero_rotation_teacher_state_has_finite_gradients(self):
+        torch.manual_seed(4)
+        model = ContactActionTransition(
+            hidden_size=16,
+            residual_scale=0.05,
+            residual_mask="palm",
+        )
+        state_history = torch.zeros(2, 3, STATE_DIM)
+        action_history = torch.zeros(2, 3, ACTION_DIM)
+        future_actions = torch.zeros(2, 4, ACTION_DIM)
+        teacher_states = torch.zeros(2, 4, STATE_DIM)
+        teacher_states[:, 0, 32] = 1.0
+        output = model.rollout(
+            state_history,
+            action_history,
+            future_actions,
+            teacher_states=teacher_states,
+            teacher_forcing_ratio=0.5,
+        )
+        output["contact_logits"].sum().backward()
+        for parameter in model.parameters():
+            if parameter.grad is not None:
+                self.assertTrue(torch.isfinite(parameter.grad).all())
 
     def test_candidate_actions_move_along_surface_normal(self):
         split = {
@@ -233,6 +317,39 @@ class ContactActionModelTests(unittest.TestCase):
             candidates["inward"][:, 6:],
             base[:, 6:],
         ))
+
+    def test_scorer_modes_only_change_selection_term(self):
+        contact = np.asarray([0.5, 0.4], dtype=np.float32)
+        penetration = np.asarray([0.01, 0.0], dtype=np.float32)
+        event = np.asarray([0.1, 0.9], dtype=np.float32)
+        geom = candidate_selection_score(
+            "geom_only",
+            contact,
+            penetration,
+            event,
+            penetration_weight=20.0,
+            event_weight=0.25,
+        )
+        learned = candidate_selection_score(
+            "learned_state",
+            contact,
+            penetration,
+            event,
+            penetration_weight=20.0,
+            event_weight=0.25,
+        )
+        hybrid = candidate_selection_score(
+            "hybrid_event",
+            contact,
+            penetration,
+            event,
+            penetration_weight=20.0,
+            event_weight=0.25,
+        )
+        self.assertTrue(np.array_equal(geom, learned))
+        self.assertTrue(np.allclose(hybrid, geom + 0.25 * event))
+        self.assertEqual(int(geom.argmax()), 1)
+        self.assertEqual(int(hybrid.argmax()), 1)
 
 
 if __name__ == "__main__":

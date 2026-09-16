@@ -70,3 +70,4 @@ def test_geometry_transition_rollout_modes():
         )
         assert output["states"].shape == (2, 3, 34)
         assert output["contact_logits"].shape == (2, 3, 2)
+        assert output["residuals"].shape == (2, 3, 32)

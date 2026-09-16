@@ -8,14 +8,30 @@ from torch import nn
 from .features import ACTION_DIM, CONTACT_SLICE, NONCONTACT_DIM, STATE_DIM
 
 
+def residual_mask_from_mode(mode):
+    """Return the non-contact state dimensions allowed to receive residual."""
+    mask = torch.zeros(NONCONTACT_DIM)
+    if mode == "none":
+        return mask
+    if mode == "palm":
+        mask[9:21] = 1.0
+        mask[24:32] = 1.0
+        return mask
+    if mode == "full":
+        mask[:] = 1.0
+        return mask
+    raise ValueError(f"unsupported residual mask mode: {mode}")
+
+
 def _rotation_6d_to_matrix(rotation_6d):
     """Decode first-two-rows 6D rotations into matrices."""
-    row1 = torch.nn.functional.normalize(rotation_6d[..., 0:3], dim=-1)
+    row1 = rotation_6d[..., 0:3]
+    row1 = row1 / row1.norm(dim=-1, keepdim=True).clamp_min(1e-6)
     row2 = rotation_6d[..., 3:6]
-    row2 = torch.nn.functional.normalize(
-        row2 - (row2 * row1).sum(dim=-1, keepdim=True) * row1,
-        dim=-1,
+    row2 = (
+        row2 - (row2 * row1).sum(dim=-1, keepdim=True) * row1
     )
+    row2 = row2 / row2.norm(dim=-1, keepdim=True).clamp_min(1e-6)
     row3 = torch.cross(row1, row2, dim=-1)
     return torch.stack([row1, row2, row3], dim=-2)
 
@@ -41,6 +57,7 @@ class ContactActionTransition(nn.Module):
         state_embedding=128,
         action_embedding=64,
         residual_scale=0.05,
+        residual_mask="palm",
     ):
         super().__init__()
         if state_dim != STATE_DIM:
@@ -54,6 +71,12 @@ class ContactActionTransition(nn.Module):
         self.residual_scale = float(residual_scale)
         if self.residual_scale < 0:
             raise ValueError("residual_scale must be non-negative")
+        self.residual_mask_mode = residual_mask
+        self.register_buffer(
+            "residual_mask",
+            residual_mask_from_mode(residual_mask),
+            persistent=False,
+        )
 
         self.state_encoder = nn.Sequential(
             nn.Linear(state_dim, state_embedding),
@@ -123,7 +146,13 @@ class ContactActionTransition(nn.Module):
         )
         return self.cell(inputs, hidden)
 
-    def step(self, hidden, state, action):
+    def step(
+        self,
+        hidden,
+        state,
+        action,
+        use_learned_residual=True,
+    ):
         hidden = self.step_hidden(hidden, state, action)
         raw = self.head(hidden)
         residual = raw[..., :NONCONTACT_DIM]
@@ -162,26 +191,42 @@ class ContactActionTransition(nn.Module):
             ],
             dim=-1,
         )
+        bounded_residual = torch.tanh(
+            residual * self.residual_mask
+        )
+        applied_residual = (
+            self.residual_scale * bounded_residual
+            if use_learned_residual
+            else torch.zeros_like(bounded_residual)
+        )
         noncontact = (
             state[..., :NONCONTACT_DIM]
             + action_base
-            + self.residual_scale * residual
+            + applied_residual
         )
         current_contact = state[..., CONTACT_SLICE]
+        current_contact = current_contact.clamp(0.0, 1.0)
         contact_probability = (
-            current_contact * (1.0 - torch.sigmoid(release_logits))
+            current_contact
+            * (1.0 - torch.sigmoid(release_logits))
             + (1.0 - current_contact) * torch.sigmoid(onset_logits)
         )
-        contact_logits = torch.logit(
-            contact_probability.clamp(1e-4, 1.0 - 1e-4)
+        contact_probability = contact_probability.clamp(
+            1e-6,
+            1.0 - 1e-6,
         )
+        contact_logits = torch.logit(contact_probability)
+        contact_probability = torch.sigmoid(contact_logits)
         next_state = torch.cat([noncontact, contact_probability], dim=-1)
         return {
             "hidden": hidden,
             "state": next_state,
+            "contact_probability": contact_probability,
             "contact_logits": contact_logits,
             "onset_logits": onset_logits,
             "release_logits": release_logits,
+            "residual": bounded_residual,
+            "applied_residual": applied_residual,
         }
 
     def rollout(
@@ -191,6 +236,7 @@ class ContactActionTransition(nn.Module):
         future_actions,
         teacher_states=None,
         teacher_forcing_ratio=1.0,
+        use_learned_residual=True,
     ):
         """Run a short rollout.
 
@@ -212,22 +258,29 @@ class ContactActionTransition(nn.Module):
         hidden = self.encode_history(state_history, action_history)
         input_state = state_history[:, -1]
         predicted_states = []
+        contact_probabilities = []
         contact_logits = []
         onset_logits = []
         release_logits = []
+        residuals = []
 
         for horizon_index in range(future_actions.shape[1]):
             step_output = self.step(
                 hidden,
                 input_state,
                 future_actions[:, horizon_index],
+                use_learned_residual=use_learned_residual,
             )
             hidden = step_output["hidden"]
             next_state = step_output["state"]
             predicted_states.append(next_state)
+            contact_probabilities.append(
+                step_output["contact_probability"]
+            )
             contact_logits.append(step_output["contact_logits"])
             onset_logits.append(step_output["onset_logits"])
             release_logits.append(step_output["release_logits"])
+            residuals.append(step_output["residual"])
 
             if teacher_states is None:
                 input_state = next_state
@@ -254,7 +307,12 @@ class ContactActionTransition(nn.Module):
 
         return {
             "states": torch.stack(predicted_states, dim=1),
+            "contact_probability": torch.stack(
+                contact_probabilities,
+                dim=1,
+            ),
             "contact_logits": torch.stack(contact_logits, dim=1),
             "onset_logits": torch.stack(onset_logits, dim=1),
             "release_logits": torch.stack(release_logits, dim=1),
+            "residuals": torch.stack(residuals, dim=1),
         }

@@ -50,6 +50,16 @@ def parse_args():
     parser.add_argument("--event_pos_weight", type=float, default=4.0)
     parser.add_argument("--contact_calibration_weight", type=float, default=0.2)
     parser.add_argument("--residual_scale", type=float, default=0.05)
+    parser.add_argument(
+        "--residual_mask",
+        choices=("none", "palm", "full"),
+        default="palm",
+    )
+    parser.add_argument(
+        "--residual_regularization_weight",
+        type=float,
+        default=0.01,
+    )
     parser.add_argument("--zero_actions", action="store_true")
     parser.add_argument("--max_eval_horizon", type=int, default=8)
     parser.add_argument(
@@ -115,6 +125,7 @@ def model_rollout(
     geometry_bank=None,
     geometry_mode="none",
     perturb_palms=False,
+    use_learned_residual=True,
 ):
     states = split["state_history"][indices].to(device)
     action_history = split["action_history"][indices].to(device)
@@ -128,6 +139,7 @@ def model_rollout(
     rollout_kwargs = {
         "teacher_states": targets if teacher_forcing_ratio > 0 else None,
         "teacher_forcing_ratio": teacher_forcing_ratio,
+        "use_learned_residual": use_learned_residual,
     }
     if geometry_mode != "none":
         rollout_kwargs.update(
@@ -156,12 +168,15 @@ def collect_rollout(
     geometry_bank=None,
     geometry_mode="none",
     batch_size=256,
+    use_learned_residual=True,
 ):
     outputs = {
         "states": [],
+        "contact_probability": [],
         "contact_logits": [],
         "onset_logits": [],
         "release_logits": [],
+        "residuals": [],
     }
     targets = []
     for start in range(0, len(indices), batch_size):
@@ -177,6 +192,7 @@ def collect_rollout(
             device=device,
             geometry_bank=geometry_bank,
             geometry_mode=geometry_mode,
+            use_learned_residual=use_learned_residual,
         )
         for key in outputs:
             outputs[key].append(output[key])
@@ -241,12 +257,13 @@ def geodesic_rotation_error(predicted_6d, target_6d):
 def rotation_6d_to_matrix(rotation_6d):
     """Convert first-two-rows 6D rotations back to matrices."""
     rotation_6d = rotation_6d.reshape(-1, 6)
-    row1 = F.normalize(rotation_6d[:, 0:3], dim=-1)
+    row1 = rotation_6d[:, 0:3]
+    row1 = row1 / row1.norm(dim=-1, keepdim=True).clamp_min(1e-6)
     row2 = rotation_6d[:, 3:6]
-    row2 = F.normalize(
-        row2 - (row2 * row1).sum(dim=-1, keepdim=True) * row1,
-        dim=-1,
+    row2 = (
+        row2 - (row2 * row1).sum(dim=-1, keepdim=True) * row1
     )
+    row2 = row2 / row2.norm(dim=-1, keepdim=True).clamp_min(1e-6)
     row3 = torch.cross(row1, row2, dim=-1)
     return torch.stack([row1, row2, row3], dim=-2)
 
@@ -555,6 +572,19 @@ def evaluate_model(model, split, args, max_horizon):
             geometry_mode=args.geometry_mode,
             batch_size=args.eval_batch_size,
         )
+        analytic_output, _ = collect_rollout(
+            model,
+            split,
+            indices,
+            max_horizon,
+            teacher_forcing_ratio=0.0,
+            zero_actions=args.zero_actions,
+            device=args.device,
+            geometry_bank=args.geometry_bank,
+            geometry_mode=args.geometry_mode,
+            batch_size=args.eval_batch_size,
+            use_learned_residual=False,
+        )
         zero_output, _ = collect_rollout(
             model,
             split,
@@ -612,6 +642,11 @@ def evaluate_model(model, split, args, max_horizon):
             free_output["contact_logits"],
             targets,
         ),
+        "analytic_free_running": prediction_metrics(
+            analytic_output["states"],
+            analytic_output["contact_logits"],
+            targets,
+        ),
         "zero_action": prediction_metrics(
             zero_output["states"],
             zero_output["contact_logits"],
@@ -625,6 +660,14 @@ def evaluate_model(model, split, args, max_horizon):
             targets,
         ),
         "action_sensitivity": sensitivity,
+        "residual_stats": {
+            "mean_abs": float(
+                free_output["residuals"].abs().mean().item()
+            ),
+            "max_abs": float(
+                free_output["residuals"].abs().max().item()
+            ),
+        },
         "contact_events": contact_event_metrics(
             split["state_history"][indices, -1, CONTACT_SLICE].to(
                 args.device
@@ -681,6 +724,7 @@ def train(args):
         model = ContactActionTransition(
             hidden_size=args.hidden_size,
             residual_scale=args.residual_scale,
+            residual_mask=args.residual_mask,
         ).to(args.device)
     else:
         model = ContactActionGeometryTransition(
@@ -690,6 +734,7 @@ def train(args):
             geometry_patch_grid=args.geometry_patch_grid,
             geometry_radius_normalized=args.geometry_radius_normalized,
             geometry_mode=args.geometry_mode,
+            residual_mask=args.residual_mask,
         ).to(args.device)
     optimizer = torch.optim.AdamW(
         model.parameters(),
@@ -830,8 +875,8 @@ def train(args):
                 release_labels,
                 currently_on,
             )
-            calibration_loss = F.binary_cross_entropy_with_logits(
-                output["contact_logits"],
+            calibration_loss = F.binary_cross_entropy(
+                output["contact_probability"].clamp(1e-6, 1.0 - 1e-6),
                 target_contact,
             )
             contact_loss = (
@@ -839,7 +884,13 @@ def train(args):
                 + release_loss
                 + args.contact_calibration_weight * calibration_loss
             )
-            loss = noncontact_loss + contact_loss
+            residual_regularization = output["residuals"].pow(2).mean()
+            loss = (
+                noncontact_loss
+                + contact_loss
+                + args.residual_regularization_weight
+                * residual_regularization
+            )
             if contrastive_loss is not None:
                 loss = loss + args.contrastive_weight * contrastive_loss
             optimizer.zero_grad()

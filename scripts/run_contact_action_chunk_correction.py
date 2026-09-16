@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 
@@ -14,7 +15,11 @@ from manip.world_model.contact_action.features import (
     CONTACT_SLICE,
     NORMAL_SLICE,
 )
+from manip.world_model.contact_action.geometry import build_geometry_bank
 from manip.world_model.contact_action.model import ContactActionTransition
+from manip.world_model.contact_action.model_geometry import (
+    ContactActionGeometryTransition,
+)
 from scripts.evaluate_contact_protocol_v0_dense import (
     dense_contact_distances,
 )
@@ -22,7 +27,11 @@ from scripts.select_mami_candidates_with_world_model import (
     candidate_features,
     candidate_files,
 )
-from scripts.build_contact_action_dataset import load_object_sdf
+from scripts.build_contact_action_dataset import (
+    TRAIN_OBJECTS,
+    VALIDATION_OBJECTS,
+    load_object_sdf,
+)
 from scripts.train_contact_action_world_model import (
     rotation_6d_to_matrix,
 )
@@ -51,10 +60,17 @@ def parse_args():
     parser.add_argument("--contact_threshold_m", type=float, default=0.05)
     parser.add_argument("--penetration_weight", type=float, default=0.0)
     parser.add_argument(
-        "--score_mode",
-        choices=("current", "frame_contact"),
-        default="current",
+        "--scorer_mode",
+        choices=("geom_only", "learned_state", "hybrid_event"),
+        default="geom_only",
     )
+    parser.add_argument(
+        "--rollout_mode",
+        choices=("analytic", "learned"),
+        default="analytic",
+    )
+    parser.add_argument("--event_weight", type=float, default=0.25)
+    parser.add_argument("--geometry_data_root", default="")
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--save_visual_sequence", default="")
@@ -65,6 +81,51 @@ def parse_args():
     )
     parser.add_argument("--save_visual_output", default="")
     return parser.parse_args()
+
+
+def sha256_file(path):
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def load_world_model(args, checkpoint):
+    model_args = checkpoint["args"]
+    geometry_mode = model_args.get("geometry_mode", "none")
+    residual_mask = model_args.get("residual_mask", "palm")
+    if geometry_mode == "none":
+        model = ContactActionTransition(
+            hidden_size=model_args["hidden_size"],
+            residual_scale=model_args.get("residual_scale", 0.0),
+            residual_mask=residual_mask,
+        )
+        geometry_bank = None
+        return model, geometry_bank, geometry_mode
+
+    if not args.geometry_data_root:
+        raise ValueError(
+            "--geometry_data_root is required by a geometry checkpoint"
+        )
+    model = ContactActionGeometryTransition(
+        hidden_size=model_args["hidden_size"],
+        residual_scale=model_args.get("residual_scale", 0.0),
+        geometry_output_size=model_args.get("geometry_output_size", 64),
+        geometry_patch_grid=model_args.get("geometry_patch_grid", 5),
+        geometry_radius_normalized=model_args.get(
+            "geometry_radius_normalized",
+            0.08,
+        ),
+        geometry_mode=geometry_mode,
+        residual_mask=residual_mask,
+    )
+    geometry_bank = build_geometry_bank(
+        Path(args.geometry_data_root),
+        TRAIN_OBJECTS + VALIDATION_OBJECTS,
+        args.device,
+    )
+    return model, geometry_bank, geometry_mode
 
 
 def smooth_random_residual(horizon, rng, scale, knot_count=3):
@@ -156,6 +217,23 @@ def world_model_cost(
     }
 
 
+def candidate_selection_score(
+    scorer_mode,
+    frame_contact_fraction,
+    mean_penetration,
+    event_probability,
+    penetration_weight,
+    event_weight,
+):
+    score = (
+        frame_contact_fraction
+        - penetration_weight * mean_penetration
+    )
+    if scorer_mode == "hybrid_event":
+        score = score + event_weight * event_probability
+    return score
+
+
 def state_to_palm_world(
     states,
     anchor_object_pos,
@@ -222,6 +300,14 @@ def first_onset_window(windows, ground_truth_contact, hand_index):
 
 def main():
     args = parse_args()
+    if args.scorer_mode == "geom_only" and args.rollout_mode != "analytic":
+        raise ValueError(
+            "geom_only requires --rollout_mode analytic"
+        )
+    if args.scorer_mode != "geom_only" and args.rollout_mode != "learned":
+        raise ValueError(
+            f"{args.scorer_mode} requires --rollout_mode learned"
+        )
     data_root = Path(args.data_root_folder)
     rng = np.random.default_rng(args.seed)
     candidate_dir = (
@@ -233,9 +319,9 @@ def main():
         args.world_model_checkpoint,
         map_location=args.device,
     )
-    model = ContactActionTransition(
-        hidden_size=checkpoint["args"]["hidden_size"],
-        residual_scale=checkpoint["args"].get("residual_scale", 0.0),
+    model, geometry_bank, geometry_mode = load_world_model(
+        args,
+        checkpoint,
     )
     model.load_state_dict(checkpoint["model_state_dict"])
     model.to(args.device)
@@ -300,13 +386,30 @@ def main():
                 np.stack([action for _, action in candidates])
             ).to(args.device)
             batch_size = len(candidates)
+            object_name = str(candidate["object_name"])
+            rollout_kwargs = {
+                "teacher_states": None,
+                "teacher_forcing_ratio": 0.0,
+                "use_learned_residual": args.rollout_mode == "learned",
+            }
+            if geometry_mode != "none":
+                object_index = geometry_bank.names.index(object_name)
+                rollout_kwargs.update(
+                    geometry_bank=geometry_bank,
+                    object_indices=torch.full(
+                        (batch_size,),
+                        object_index,
+                        dtype=torch.long,
+                        device=args.device,
+                    ),
+                    geometry_mode=geometry_mode,
+                )
             with torch.no_grad():
                 output = model.rollout(
                     state_history.repeat(batch_size, 1, 1),
                     action_history.repeat(batch_size, 1, 1),
                     candidate_actions,
-                    teacher_states=None,
-                    teacher_forcing_ratio=0.0,
+                    **rollout_kwargs,
                 )
                 base_actions = candidate_actions[0:1]
                 costs, cost_components = world_model_cost(
@@ -325,7 +428,6 @@ def main():
                 candidate["obj_rot_mat"][0],
                 dtype=torch.float32,
             )
-            object_name = str(candidate["object_name"])
             object_scale = float(object_scale_cache[object_name])
 
             predicted_palms = state_to_palm_world(
@@ -395,17 +497,20 @@ def main():
                 contact_f1(predicted_contact[index], ground_truth_window)
                 for index in range(batch_size)
             ]
-            if args.score_mode == "frame_contact":
-                selection_score = (
-                    frame_contact_fraction
-                    - args.penetration_weight
-                    * mean_id_penetration
-                )
-                selected_index = int(
-                    selection_score.argmax().item()
-                )
-            else:
-                selected_index = int(costs.argmin().item())
+            event_probability = torch.sigmoid(
+                output["contact_logits"][..., hand_index]
+            ).mean(dim=1).detach().cpu().numpy()
+            selection_score = candidate_selection_score(
+                args.scorer_mode,
+                frame_contact_fraction,
+                mean_id_penetration,
+                event_probability,
+                args.penetration_weight,
+                args.event_weight,
+            )
+            selected_index = int(
+                selection_score.argmax().item()
+            )
             random_indices = [
                 index
                 for index, (name, _) in enumerate(candidates)
@@ -527,7 +632,14 @@ def main():
         "oracle_mean_f1": float(np.mean([
             event["oracle_f1"] for event in events
         ])) if events else None,
-        "score_mode": args.score_mode,
+        "scorer_mode": args.scorer_mode,
+        "rollout_mode": args.rollout_mode,
+        "event_weight": args.event_weight,
+        "event_head_used": args.scorer_mode == "hybrid_event",
+        "checkpoint_hash": sha256_file(args.world_model_checkpoint),
+        "residual_scale": checkpoint["args"].get("residual_scale", 0.0),
+        "residual_mask": checkpoint["args"].get("residual_mask", "palm"),
+        "geometry_mode": geometry_mode,
         "penetration_weight": args.penetration_weight,
         "events": events,
     }

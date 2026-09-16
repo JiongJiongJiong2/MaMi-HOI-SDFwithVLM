@@ -24,6 +24,7 @@ class ContactActionGeometryTransition(ContactActionTransition):
         geometry_patch_grid=5,
         geometry_radius_normalized=0.08,
         geometry_mode="normal",
+        residual_mask="palm",
     ):
         super().__init__(
             state_dim=state_dim,
@@ -32,6 +33,7 @@ class ContactActionGeometryTransition(ContactActionTransition):
             state_embedding=state_embedding,
             action_embedding=action_embedding,
             residual_scale=residual_scale,
+            residual_mask=residual_mask,
         )
         if geometry_mode not in ("normal", "zero", "shuffle"):
             raise ValueError(f"unsupported geometry_mode: {geometry_mode}")
@@ -226,6 +228,7 @@ class ContactActionGeometryTransition(ContactActionTransition):
         geometry_bank=None,
         object_indices=None,
         geometry_mode=None,
+        use_learned_residual=True,
     ):
         if future_actions.ndim != 3:
             raise ValueError("future_actions must be [B, H, A]")
@@ -249,9 +252,11 @@ class ContactActionGeometryTransition(ContactActionTransition):
         )
         input_state = state_history[:, -1]
         predicted_states = []
+        contact_probabilities = []
         contact_logits = []
         onset_logits = []
         release_logits = []
+        residuals = []
 
         for horizon_index in range(future_actions.shape[1]):
             self._current_geometry_embedding = self._geometry_embedding(
@@ -267,13 +272,18 @@ class ContactActionGeometryTransition(ContactActionTransition):
                 hidden,
                 input_state,
                 future_actions[:, horizon_index],
+                use_learned_residual=use_learned_residual,
             )
             hidden = step_output["hidden"]
             next_state = step_output["state"]
             predicted_states.append(next_state)
+            contact_probabilities.append(
+                step_output["contact_probability"]
+            )
             contact_logits.append(step_output["contact_logits"])
             onset_logits.append(step_output["onset_logits"])
             release_logits.append(step_output["release_logits"])
+            residuals.append(step_output["residual"])
             if teacher_states is None or teacher_forcing_ratio == 0.0:
                 input_state = next_state
             elif teacher_forcing_ratio == 1.0:
@@ -296,6 +306,10 @@ class ContactActionGeometryTransition(ContactActionTransition):
         self._collect_geometry_embeddings = False
         return {
             "states": torch.stack(predicted_states, dim=1),
+            "contact_probability": torch.stack(
+                contact_probabilities,
+                dim=1,
+            ),
             "contact_logits": torch.stack(contact_logits, dim=1),
             "onset_logits": torch.stack(onset_logits, dim=1),
             "release_logits": torch.stack(release_logits, dim=1),
@@ -303,4 +317,5 @@ class ContactActionGeometryTransition(ContactActionTransition):
                 self.collected_geometry_embeddings,
                 dim=1,
             ),
+            "residuals": torch.stack(residuals, dim=1),
         }

@@ -275,6 +275,7 @@ def main():
     model = ContactActionTransition(
         hidden_size=checkpoint["args"]["hidden_size"],
         residual_scale=checkpoint["args"].get("residual_scale", 0.0),
+        residual_mask=checkpoint["args"].get("residual_mask", "palm"),
     )
     model.load_state_dict(checkpoint["model_state_dict"])
     model.to(args.device)

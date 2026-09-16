@@ -75,11 +75,13 @@ def load_arm_rows(root, seed, arm, args, val_split):
             geometry_patch_grid=saved.geometry_patch_grid,
             geometry_radius_normalized=saved.geometry_radius_normalized,
             geometry_mode=geometry_mode,
+            residual_mask=getattr(saved, "residual_mask", "palm"),
         ).to(args.device)
     else:
         model = ContactActionTransition(
             hidden_size=saved.hidden_size,
             residual_scale=saved.residual_scale,
+            residual_mask=getattr(saved, "residual_mask", "palm"),
         ).to(args.device)
     model.load_state_dict(checkpoint["model_state_dict"])
     model.eval()

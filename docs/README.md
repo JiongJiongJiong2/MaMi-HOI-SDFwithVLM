@@ -1,6 +1,14 @@
 # MaMi-HOI-SDFwithVLM 文档导航
 
-当前近期工作只有两个平行、独立的基础实验。
+## 当前主路线
+
+- [下一阶段实验路线](research/next-stage-experiment-roadmap-2026-09-16.md)：仓库内唯一主路线图，记录保留配置、实验依赖、冲突规则、遗漏项和停止条件。
+- [Forward-inverse consistency protocol](research/forward-inverse-consistency-protocol-2026-09-16.md)：尚未实现的时间一致性前置诊断协议。
+- [本周研究成果评价](research/weekly-research-assessment-2026-09-16.md)：2026-09-16 的完整证据审计和下一步取舍。
+- [Analytic contact baseline](experiments/analytic-contact-baseline.md)：canonical rerun 和晋级条件。
+- [WM Stage 1 learned residual](experiments/wm-stage1-learned-residual.md)：当前 residual 分支的 NO-GO 决策。
+
+## 基础实验与边界
 
 - [Dynamic SDF U0/U1 操作手册](experiments/dynamic-sdf.md)：同一 baseline 下验证 dynamic-SDF loss 是否改善生成接触；真实 CUDA Gate 尚未通过。
 - [G0 接触条件极简截面几何](experiments/sectional-prior.md)：不训练模型，验证截面弦是否包含第二只手的接触区域信息；合成 smoke 已通过，真实数据待验证。

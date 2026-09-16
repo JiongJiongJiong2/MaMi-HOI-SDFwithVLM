@@ -35,10 +35,17 @@ from manip.data.long_cano_traj_dataset import LongCanoObjectTrajDataset
 from manip.data.unseen_obj_long_cano_traj_dataset import UnseenCanoObjectTrajDataset
 
 from manip.model.transformer_control_GAPA_motion_cond_diffusion import ObjectCondGaussianDiffusion
+from manip.model.checkpoint_compat import (
+    FINETUNE_SDF_ONLY_MODEL_KEYS,
+    build_compatible_state_dict,
+    derive_ema_allowed_missing_keys,
+)
+from manip.world_model.hoidyn import load_hoidyn_dynamics
 from manip.model.sdf_utils import (
     build_dynamic_sdf_prediction_query,
     object_sdf_in_bounds_mask,
     rotation_validity_statistics,
+    validate_unsigned_clearance_targets,
     world_to_object_points,
 )
 
@@ -47,6 +54,10 @@ from manip.vis.blender_vis_mesh_motion import run_blender_rendering_and_save2vid
 from manip.lafan1.utils import quat_inv, quat_mul, quat_between, normalize, quat_normalize
 
 from t2m_eval.evaluation_metrics import compute_metrics, determine_floor_height_and_contacts, compute_metrics_long_seq
+from t2m_eval.hand_surface_metrics import (
+    aggregate_hand_contact_metrics_v3,
+    compute_hand_contact_metrics_v3,
+)
 
 import clip
 from utils.vis_utils.vis_layer_sensitivity import plot_geometric_dilution
@@ -413,6 +424,27 @@ class Trainer(object):
         self.vis_folder = results_folder.replace("weights", "vis_res")
 
         self.opt = opt
+        self.use_hoi_dyn = getattr(opt, 'use_hoi_dyn', False)
+        self.hoi_dyn_model = None
+        if self.use_hoi_dyn:
+            hoi_dyn_config = getattr(opt, 'hoi_dyn_config', '')
+            hoi_dyn_ckpt = getattr(opt, 'hoi_dyn_ckpt', '')
+            if not hoi_dyn_config:
+                raise ValueError("--use_hoi_dyn requires --hoi_dyn_config")
+            if not hoi_dyn_ckpt:
+                raise ValueError("--use_hoi_dyn requires --hoi_dyn_ckpt")
+            model_device = next(self.model.parameters()).device
+            self.hoi_dyn_model = load_hoidyn_dynamics(
+                config_path=hoi_dyn_config,
+                checkpoint_path=hoi_dyn_ckpt,
+                device=model_device,
+            )
+            self.model.set_hoi_dyn_model(self.hoi_dyn_model)
+            print(
+                "Loaded frozen HOI-Dyn dynamics: "
+                f"config={hoi_dyn_config}, checkpoint={hoi_dyn_ckpt}, "
+                f"parameters={sum(p.numel() for p in self.hoi_dyn_model.parameters())}"
+            )
 
         self.window = opt.window
 
@@ -450,6 +482,11 @@ class Trainer(object):
             self.unsigned_clearance_targets = json.loads(
                 clearance_path.read_text(encoding="utf-8")
             )
+            self.unsigned_clearance_targets = (
+                validate_unsigned_clearance_targets(
+                    self.unsigned_clearance_targets
+                )
+            )
 
         self.test_unseen_objects = self.opt.test_unseen_objects
 
@@ -468,6 +505,14 @@ class Trainer(object):
         self.use_guidance_in_denoising = self.opt.use_guidance_in_denoising
 
         self.compute_metrics = self.opt.compute_metrics
+        self.compute_hand_contact_metrics_v3 = getattr(
+            self.opt,
+            "compute_hand_contact_metrics_v3",
+            False,
+        )
+        self.skip_eval_mesh_export = getattr(
+            self.opt, "skip_eval_mesh_export", False
+        )
 
         self.loss_w_feet = self.opt.loss_w_feet
         self.loss_w_fk = self.opt.loss_w_fk
@@ -668,8 +713,27 @@ class Trainer(object):
             raise KeyError(
                 f"{checkpoint_path} is missing required fine-tune keys: {sorted(missing)}"
             )
-        self.model.load_state_dict(data['model'], strict=True)
-        self.ema.load_state_dict(data['ema'], strict=True)
+        compatible_model_state, model_compat_report = (
+            build_compatible_state_dict(
+                self.model.state_dict(),
+                data['model'],
+                FINETUNE_SDF_ONLY_MODEL_KEYS,
+                context="fine-tune model",
+            )
+        )
+        compatible_ema_state, ema_compat_report = (
+            build_compatible_state_dict(
+                self.ema.state_dict(),
+                data['ema'],
+                derive_ema_allowed_missing_keys(
+                    self.ema.state_dict(),
+                    FINETUNE_SDF_ONLY_MODEL_KEYS,
+                ),
+                context="fine-tune EMA",
+            )
+        )
+        self.model.load_state_dict(compatible_model_state, strict=True)
+        self.ema.load_state_dict(compatible_ema_state, strict=True)
         self.step = 0
         if self.optimizer.state:
             raise RuntimeError("Baseline optimizer state was unexpectedly loaded")
@@ -679,14 +743,19 @@ class Trainer(object):
             'checkpoint_path': os.path.abspath(checkpoint_path),
             'checkpoint_sha256': sha256_file(checkpoint_path),
             'checkpoint_step': int(data.get('step', -1)),
-            'model_strict_load': True,
-            'ema_strict_load': True,
+            'checkpoint_model_strict_load': False,
+            'checkpoint_ema_strict_load': False,
+            'model_strict_load_after_compatibility_fill': True,
+            'ema_strict_load_after_compatibility_fill': True,
+            'model_compatibility': model_compat_report,
+            'ema_compatibility': ema_compat_report,
             'optimizer_fresh': True,
             'scaler_fresh': True,
             'experiment_step': 0,
         }
         print(
-            "Loaded baseline model/EMA strictly from "
+            "Loaded baseline model/EMA with audited SDF-only compatibility "
+            "from "
             f"{checkpoint_path}; optimizer/scaler are fresh; experiment step=0."
         )
 
@@ -747,6 +816,8 @@ class Trainer(object):
         return mask
 
     def train(self):
+        if os.environ.get("TORCH_AUTODETECT_ANOMALY") == "1":
+            torch.autograd.set_detect_anomaly(True)
         init_step = self.step
         smoke_started_at = time.perf_counter()
         smoke_records = []
@@ -882,6 +953,63 @@ class Trainer(object):
                     else:
                         loss = loss_diffusion
 
+                    if (
+                        os.environ.get("TORCH_GRAD_COMPONENT_DEBUG") == "1"
+                        and idx == 0
+                        and i == 0
+                    ):
+                        named_parameters = [
+                            (name, parameter)
+                            for name, parameter in self.model.named_parameters()
+                            if parameter.requires_grad
+                        ]
+                        component_losses = (
+                            ("diffusion", loss_diffusion),
+                            ("object", self.loss_w_obj_pts * loss_obj),
+                            ("human", self.loss_w_fk * loss_human),
+                            ("feet", self.loss_w_feet * loss_feet),
+                            ("fk", self.loss_w_fk * loss_fk),
+                            ("object_pts", self.loss_w_obj_pts * loss_obj_pts),
+                            (
+                                "unsigned_contact",
+                                self.loss_w_unsigned_surface_contact
+                                * loss_unsigned_contact,
+                            ),
+                        )
+                        for component_name, component_loss in component_losses:
+                            if not component_loss.requires_grad:
+                                continue
+                            component_grads = torch.autograd.grad(
+                                component_loss,
+                                [parameter for _, parameter in named_parameters],
+                                retain_graph=True,
+                                allow_unused=True,
+                            )
+                            finite = True
+                            max_abs = 0.0
+                            bad_names = []
+                            for (parameter_name, _), gradient in zip(
+                                named_parameters,
+                                component_grads,
+                            ):
+                                if gradient is None:
+                                    continue
+                                if not torch.isfinite(gradient).all():
+                                    finite = False
+                                    bad_names.append(parameter_name)
+                                max_abs = max(
+                                    max_abs,
+                                    float(
+                                        gradient.detach().abs().max().item()
+                                    ),
+                                )
+                            print(
+                                "Gradient component debug: "
+                                f"{component_name}, finite={finite}, "
+                                f"absmax={max_abs}, "
+                                f"bad_parameters={bad_names[:5]}"
+                            )
+
                     if not torch.isfinite(loss).item():
                         message = 'Non-finite total loss'
                         if self.opt.smoke_test:
@@ -954,7 +1082,34 @@ class Trainer(object):
                     parameters = [p for p in self.model.parameters() if p.grad is not None]
                     total_norm = torch.norm(torch.stack([torch.norm(p.grad.detach(), 2.0).to(obj_data.device) for p in parameters]), 2.0)
                     if not torch.isfinite(total_norm):
-                        message = 'Non-finite model gradient norm'
+                        nonfinite_parameter_names = [
+                            name
+                            for name, parameter in self.model.named_parameters()
+                            if parameter.grad is not None
+                            and not torch.isfinite(parameter.grad).all()
+                        ]
+                        message = (
+                            "Non-finite model gradient norm; first "
+                            f"non-finite parameters: "
+                            f"{nonfinite_parameter_names[:20]}"
+                        )
+                        if nonfinite_parameter_names:
+                            first_bad_gradient = dict(
+                                self.model.named_parameters()
+                            )[nonfinite_parameter_names[0]].grad
+                            finite_gradient = first_bad_gradient[
+                                torch.isfinite(first_bad_gradient)
+                            ]
+                            message += (
+                                "; first_bad_gradient_nan="
+                                f"{int(torch.isnan(first_bad_gradient).sum())}"
+                                "; first_bad_gradient_inf="
+                                f"{int(torch.isinf(first_bad_gradient).sum())}"
+                                "; first_bad_gradient_finite_absmax="
+                                f"{float(finite_gradient.abs().max().item()) if finite_gradient.numel() else None}"
+                            )
+                        if self.use_unsigned_surface_contact:
+                            message += f"; unsigned_stats={unsigned_stats}"
                         if self.opt.smoke_test:
                             raise FloatingPointError(message)
                         print(f'WARNING: {message}. Skipping to next data...')
@@ -975,11 +1130,11 @@ class Trainer(object):
                                 "Train/Loss/Dynamic SDF": loss_sdf.item(),
                                 "Train/Loss/SDF Ranking": loss_sdf_contrastive.item(),
                             }
-                            if self.use_dynamic_sdf:
-                                log_dict.update({
-                                    f"Train/DynamicSDF/{key}": value
-                                    for key, value in dynamic_stats.items()
-                                })
+                        if self.use_dynamic_sdf:
+                            log_dict.update({
+                                f"Train/DynamicSDF/{key}": value
+                                for key, value in dynamic_stats.items()
+                            })
                         else:
                             log_dict = {
                                 "Train/Loss/Total Loss": loss.item(),
@@ -987,6 +1142,12 @@ class Trainer(object):
                                 "Train/Loss/Object Loss": loss_obj.item(),
                                 "Train/Loss/Human Loss": loss_human.item(),
                             }
+                        if self.use_hoi_dyn:
+                            log_dict.update({
+                                f"Train/HOIDyn/{key}": value
+                                for key, value in self.model.last_hoi_dyn_stats.items()
+                                if isinstance(value, (int, float))
+                            })
                         wandb.log(log_dict)
 
                     if idx % 20 == 0 and i == 0:
@@ -1015,6 +1176,11 @@ class Trainer(object):
                                         'step': int(idx),
                                         'stats': dynamic_stats,
                                     }, sort_keys=True) + '\n')
+                        if self.use_hoi_dyn:
+                            print(
+                                "HOI-Dyn loss: %.8f"
+                                % self.model.last_hoi_dyn_stats.get('total', 0.0)
+                            )
 
             if nan_exists:
                 continue
@@ -1600,6 +1766,9 @@ class Trainer(object):
 
         metric_dict['mean_hand_penetration_score'] = mean_hand_penetration_score
         metric_dict['mean_gt_hand_penetration_score'] = mean_gt_hand_penetration_score
+        metric_dict['mean_gt_body_min_clearance_mm_legacy'] = mean_gt_d_hand
+        metric_dict['mean_pred_body_min_clearance_mm_legacy'] = mean_pred_d_hand
+        # Backward-compatible aliases for existing reports.
         metric_dict['mean_gt_d_hand_mm'] = mean_gt_d_hand
         metric_dict['mean_pred_d_hand_mm'] = mean_pred_d_hand
         metric_dict['valid_gt_d_hand_count'] = valid_gt_d_hand_count
@@ -1610,6 +1779,35 @@ class Trainer(object):
             metric_dict[k] = float(metric_dict[k])
 
         json.dump(metric_dict, open(dest_metric_json_path, 'w'))
+
+    def write_hand_contact_metrics_v3(self, dest_metric_folder):
+        records = getattr(self, "hand_contact_metrics_v3_list", [])
+        if not records:
+            return
+        if not os.path.exists(dest_metric_folder):
+            os.makedirs(dest_metric_folder)
+
+        jsonl_path = os.path.join(
+            dest_metric_folder,
+            "hand_contact_metrics_v3.jsonl",
+        )
+        with open(jsonl_path, "w", encoding="utf-8") as handle:
+            for record in records:
+                handle.write(
+                    json.dumps(record, sort_keys=True, allow_nan=False) + "\n"
+                )
+
+        aggregate = aggregate_hand_contact_metrics_v3(records)
+        aggregate_path = os.path.join(
+            dest_metric_folder,
+            "hand_contact_metrics_v3_aggregate.json",
+        )
+        with open(aggregate_path, "w", encoding="utf-8") as handle:
+            json.dump(aggregate, handle, indent=2, sort_keys=True)
+        print(
+            "Hand-contact metric v3 written with "
+            f"{aggregate['sequence_count']} sequences."
+        )
 
     def print_evaluation_metrics_for_long_seq(self, foot_sliding_jnts_list, \
                 pred_floor_height_list, contact_percent_list, \
@@ -1753,6 +1951,8 @@ class Trainer(object):
 
         self.gt_hand_penetration_list = []
         self.hand_penetration_list = []
+
+        self.hand_contact_metrics_v3_list = []
 
     def prep_res_folders(self):
         res_root_folder = self.save_res_folder
@@ -2112,8 +2312,52 @@ class Trainer(object):
                 else:
                     curr_seq_dest_res_npz_path = os.path.join(dest_res_for_eval_npz_folder, \
                                                         tmp_seq_name+".npz")
-                np.savez(curr_seq_dest_res_npz_path, seq_name=tmp_seq_name, \
-                        global_jpos=curr_pred_global_jpos) # T X 24 X 3
+                extra_fields = {}
+                if self.opt.save_contact_protocol_fields:
+                    pred_human_verts = (
+                        pred_human_verts_list[0].detach().cpu().numpy()
+                    )
+                    left_idx = np.asarray(
+                        self.left_hand_vertex_idxs,
+                        dtype=np.int64,
+                    )
+                    right_idx = np.asarray(
+                        self.right_hand_vertex_idxs,
+                        dtype=np.int64,
+                    )
+                    extra_fields = {
+                        "pred_left_hand_verts": pred_human_verts[:, left_idx],
+                        "pred_right_hand_verts": pred_human_verts[:, right_idx],
+                        "pred_object_verts": pred_obj_verts_list[0]
+                        .detach()
+                        .cpu()
+                        .numpy(),
+                        "object_faces": np.asarray(
+                            obj_faces_list[0],
+                            dtype=np.int64,
+                        ),
+                    }
+                np.savez(
+                    curr_seq_dest_res_npz_path,
+                    seq_name=tmp_seq_name,
+                    object_name=tmp_obj_name,
+                    global_jpos=curr_pred_global_jpos,
+                    obj_com_pos=pred_obj_com_pos_list[0]
+                    .detach()
+                    .cpu()
+                    .numpy(),
+                    obj_rot_mat=pred_obj_rot_mat_list[0]
+                    .detach()
+                    .cpu()
+                    .numpy(),
+                    start_frame_idx=int(
+                        start_frame_idx_list[0].detach().cpu().item()
+                    ),
+                    end_frame_idx=int(
+                        end_frame_idx_list[0].detach().cpu().item()
+                    ),
+                    **extra_fields,
+                )  # global_jpos: T X 24 X 3
 
             for tmp_s_idx in range(num_samples_per_seq):
                 # Compute evaluation metrics
@@ -2133,6 +2377,37 @@ class Trainer(object):
                         gt_obj_verts_list[tmp_s_idx], pred_obj_verts_list[tmp_s_idx], \
                         obj_faces_list[tmp_s_idx], val_data_dict['seq_len'])
 
+                if self.compute_hand_contact_metrics_v3:
+                    sample_seq_len = min(
+                        int(val_data_dict['seq_len'][tmp_s_idx].item()),
+                        gt_human_verts_list[tmp_s_idx].shape[0],
+                    )
+                    saved_contact_labels = (
+                        val_data_dict['contact_labels'][
+                            tmp_s_idx,
+                            :sample_seq_len,
+                            :2,
+                        ]
+                        > 0.5
+                    )
+                    hand_contact_metric = compute_hand_contact_metrics_v3(
+                        gt_human_verts_list[tmp_s_idx][:sample_seq_len],
+                        pred_human_verts_list[tmp_s_idx][:sample_seq_len],
+                        gt_human_jnts_list[tmp_s_idx][:sample_seq_len],
+                        pred_human_jnts_list[tmp_s_idx][:sample_seq_len],
+                        gt_obj_verts_list[tmp_s_idx][:sample_seq_len],
+                        pred_obj_verts_list[tmp_s_idx][:sample_seq_len],
+                        obj_faces_list[tmp_s_idx],
+                        self.left_hand_vertex_idxs,
+                        self.right_hand_vertex_idxs,
+                        saved_contact_labels[:, 0],
+                        saved_contact_labels[:, 1],
+                    )
+                    hand_contact_metric["sequence"] = curr_seq_name_tag
+                    hand_contact_metric["object"] = object_name_list[0]
+                    self.hand_contact_metrics_v3_list.append(
+                        hand_contact_metric
+                    )
 
                 self.all_gt_d_hand_list.append(gt_d_hand)
                 self.all_pred_d_hand_list.append(pred_d_hand)
@@ -2214,11 +2489,14 @@ class Trainer(object):
                 final_avg_pred_d_hand = sum(valid_pred_d_hand) / len(valid_pred_d_hand) if valid_pred_d_hand else 0
                 final_avg_gt_d_hand = sum(valid_gt_d_hand) / len(valid_gt_d_hand) if valid_gt_d_hand else 0
 
-                print(f"\n================ Hand-Object Contact Proxy Metric ================")
+                print(f"\n================ Legacy Body-Min Clearance Proxy ================")
                 print(f"Total Valid Contact Samples Evaluated: {len(valid_pred_d_hand)}")
-                print(f"Avg GT Hand-to-Object Surface Dist (D_hand):   {final_avg_gt_d_hand:.2f} mm")
-                print(f"Avg Pred Hand-to-Object Surface Dist (D_hand): {final_avg_pred_d_hand:.2f} mm")
+                print(f"Avg GT body-min clearance (legacy D_hand):   {final_avg_gt_d_hand:.2f} mm")
+                print(f"Avg Pred body-min clearance (legacy D_hand): {final_avg_pred_d_hand:.2f} mm")
                 print(f"==================================================================\n")
+
+        if self.hand_contact_metrics_v3_list:
+            self.write_hand_contact_metrics_v3(dest_metric_folder)
 
         if self.compute_metrics and self.mpjpe_list:
             self.print_evaluation_metrics(
@@ -2588,8 +2866,52 @@ class Trainer(object):
                 else:
                     curr_seq_dest_res_npz_path = os.path.join(dest_res_for_eval_npz_folder, \
                                                         tmp_seq_name+".npz")
-                np.savez(curr_seq_dest_res_npz_path, seq_name=tmp_seq_name, \
-                        global_jpos=curr_pred_global_jpos) # T X 24 X 3
+                extra_fields = {}
+                if self.opt.save_contact_protocol_fields:
+                    pred_human_verts = (
+                        pred_human_verts_list[0].detach().cpu().numpy()
+                    )
+                    left_idx = np.asarray(
+                        self.left_hand_vertex_idxs,
+                        dtype=np.int64,
+                    )
+                    right_idx = np.asarray(
+                        self.right_hand_vertex_idxs,
+                        dtype=np.int64,
+                    )
+                    extra_fields = {
+                        "pred_left_hand_verts": pred_human_verts[:, left_idx],
+                        "pred_right_hand_verts": pred_human_verts[:, right_idx],
+                        "pred_object_verts": pred_obj_verts_list[0]
+                        .detach()
+                        .cpu()
+                        .numpy(),
+                        "object_faces": np.asarray(
+                            obj_faces_list[0],
+                            dtype=np.int64,
+                        ),
+                    }
+                np.savez(
+                    curr_seq_dest_res_npz_path,
+                    seq_name=tmp_seq_name,
+                    object_name=tmp_obj_name,
+                    global_jpos=curr_pred_global_jpos,
+                    obj_com_pos=pred_obj_com_pos_list[0]
+                    .detach()
+                    .cpu()
+                    .numpy(),
+                    obj_rot_mat=pred_obj_rot_mat_list[0]
+                    .detach()
+                    .cpu()
+                    .numpy(),
+                    start_frame_idx=int(
+                        start_frame_idx_list[0].detach().cpu().item()
+                    ),
+                    end_frame_idx=int(
+                        end_frame_idx_list[0].detach().cpu().item()
+                    ),
+                    **extra_fields,
+                )  # global_jpos: T X 24 X 3
 
             for tmp_s_idx in range(num_samples_per_seq):
                 # Compute evaluation metrics
@@ -4056,6 +4378,9 @@ class Trainer(object):
             human_mesh_faces_list.append(mesh_faces)
             obj_mesh_faces_list.append(obj_mesh_faces)
 
+            if self.skip_eval_mesh_export:
+                continue
+
             self.compute_metrics = False
             if self.compute_metrics:
                 continue
@@ -4478,7 +4803,7 @@ def run_train(opt, device):
         train_num_steps=opt.train_num_steps,
         gradient_accumulate_every=2,    # gradient accumulation steps
         ema_decay=0.995,                # exponential moving average decay
-        amp=True,                        # turn on mixed precision
+        amp=not opt.disable_amp,         # turn on mixed precision
         save_and_sample_every=opt.save_and_sample_every,
         results_folder=str(wdir),
     )
@@ -4525,7 +4850,7 @@ def run_sample(opt, device):
         train_num_steps=8000000,         # 700000, total training steps
         gradient_accumulate_every=2,    # gradient accumulation steps
         ema_decay=0.995,                # exponential moving average decay
-        amp=True,                        # turn on mixed precision
+        amp=not opt.disable_amp,         # turn on mixed precision
         results_folder=str(wdir),
         use_wandb=False
     )
@@ -4612,6 +4937,32 @@ def parse_opt():
     parser.add_argument("--use_guidance_in_denoising", action="store_true")
 
     parser.add_argument("--compute_metrics", action="store_true")
+    parser.add_argument(
+        "--disable_amp",
+        action="store_true",
+        help="Disable mixed precision for numerical debugging or fallback runs.",
+    )
+    parser.add_argument(
+        "--compute_hand_contact_metrics_v3",
+        action="store_true",
+        help=(
+            "Compute saved-label hand-contact confusion metrics and "
+            "per-hand proxy/hand-mesh clearances."
+        ),
+    )
+    parser.add_argument(
+        "--skip_eval_mesh_export",
+        action="store_true",
+        help="Keep evaluation metrics without writing per-frame mesh files.",
+    )
+    parser.add_argument(
+        "--save_contact_protocol_fields",
+        action="store_true",
+        help=(
+            "Save predicted hand/object vertices and object faces for the "
+            "external contact evaluation protocol."
+        ),
+    )
 
     # Add rest offsets for body shape information.
     parser.add_argument("--use_random_frame_bps", action="store_true")
@@ -4672,11 +5023,74 @@ def parse_opt():
         type=float,
         default=1.0,
     )
+    parser.add_argument(
+        '--use_hoi_dyn',
+        action='store_true',
+        default=False,
+        help='Enable frozen HOI-Dyn object-response residual loss.',
+    )
+    parser.add_argument(
+        '--hoi_dyn_config',
+        type=str,
+        default='',
+        help='Path to the HOI-Dyn YAML model config.',
+    )
+    parser.add_argument(
+        '--hoi_dyn_ckpt',
+        type=str,
+        default='',
+        help='Path to the frozen HOI-Dyn dynamics checkpoint.',
+    )
+    parser.add_argument(
+        '--loss_w_hoi_dyn',
+        type=float,
+        default=1.0,
+        help='Weight applied to the HOI-Dyn residual dynamics loss.',
+    )
+    parser.add_argument(
+        '--hoi_dyn_max_step',
+        type=int,
+        default=1,
+        help='Prediction stride passed to the frozen HOI-Dyn model.',
+    )
+    parser.add_argument(
+        '--hoi_dyn_loss_type',
+        choices=('pc', 'trans_rot', 'trans'),
+        default='pc',
+        help='HOI-Dyn loss variant used for residual consistency.',
+    )
+    parser.add_argument(
+        '--hoi_dyn_dyn_loss_type',
+        choices=('res', 'non_res'),
+        default='res',
+        help='Use residual or direct generated-branch dynamics loss.',
+    )
+    parser.add_argument(
+        '--hoi_dyn_contact_source',
+        choices=('pred', 'gt'),
+        default='pred',
+        help='Contact source for the generated HOI-Dyn branch.',
+    )
+    parser.add_argument(
+        '--hoi_dyn_rot_weight',
+        type=float,
+        default=0.05,
+        help='Rotation weight when hoi_dyn_loss_type=trans_rot.',
+    )
 
     parser.add_argument("--test_unseen_objects", action="store_true")
 
 
     opt = parser.parse_args()
+    if opt.use_hoi_dyn:
+        if not opt.hoi_dyn_config:
+            raise ValueError('--use_hoi_dyn requires --hoi_dyn_config')
+        if not opt.hoi_dyn_ckpt:
+            raise ValueError('--use_hoi_dyn requires --hoi_dyn_ckpt')
+        if opt.loss_w_hoi_dyn <= 0:
+            raise ValueError('--loss_w_hoi_dyn must be positive')
+        if opt.hoi_dyn_max_step < 1:
+            raise ValueError('--hoi_dyn_max_step must be positive')
     return opt
 
 if __name__ == "__main__":

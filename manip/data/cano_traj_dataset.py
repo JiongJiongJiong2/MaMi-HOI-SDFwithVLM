@@ -175,6 +175,7 @@ class CanoObjectTrajDataset(Dataset):
         self.rest_object_geo_folder = os.path.join(self.data_root_folder, "rest_object_geo")
         if not os.path.exists(self.rest_object_geo_folder):
             os.makedirs(self.rest_object_geo_folder)
+        self.rest_geometry_cache = {}
 
         self.bps_path = "./bps.pt"
 
@@ -420,13 +421,42 @@ class CanoObjectTrajDataset(Dataset):
         return transformed_obj_verts, obj_mesh_faces
 
     def load_rest_pose_object_geometry(self, object_name):
+        if object_name in self.rest_geometry_cache:
+            return self.rest_geometry_cache[object_name]
         rest_obj_path = os.path.join(self.rest_object_geo_folder, object_name+".ply")
 
         mesh = trimesh.load_mesh(rest_obj_path)
         rest_verts = np.asarray(mesh.vertices) # Nv X 3
         obj_mesh_faces = np.asarray(mesh.faces) # Nf X 3
 
+        self.rest_geometry_cache[object_name] = (rest_verts, obj_mesh_faces)
         return rest_verts, obj_mesh_faces
+
+    def compute_object_bps_at_frame(self, object_name, window_data, frame_idx):
+        """Compute exact one-frame BPS when an optional cache file is absent."""
+        from scipy.spatial import cKDTree
+
+        rest_verts, _ = self.load_rest_pose_object_geometry(object_name)
+        rotation = np.asarray(
+            window_data['obj_rot_mat'][frame_idx:frame_idx + 1],
+            dtype=np.float32,
+        )
+        com = np.asarray(
+            window_data['window_obj_com_pos'][frame_idx:frame_idx + 1],
+            dtype=np.float32,
+        )
+        vertices = np.asarray(rest_verts, dtype=np.float32)
+        object_vertices = np.einsum(
+            'tij,vj->tvi', rotation, vertices
+        ) + com[:, None, :]
+        basis = (
+            self.obj_bps.detach().cpu().numpy()[0]
+            + com[0][None, :]
+        )
+        tree = cKDTree(object_vertices[0])
+        _, nearest = tree.query(basis, k=1)
+        deltas = object_vertices[0, nearest] - basis
+        return deltas[None].astype(np.float32)
 
     def convert_rest_pose_obj_geometry(self, object_name, obj_scale, obj_trans, obj_rot):
         # obj_scale: T, obj_trans: T X 3, obj_rot: T X 3 X 3
@@ -972,11 +1002,24 @@ class CanoObjectTrajDataset(Dataset):
         else:
             obj_bps_npy_path = os.path.join(self.rest_object_geo_folder, object_name+".npy")
 
-        obj_bps_data = np.load(obj_bps_npy_path) # T X N X 3
-
         if self.use_random_frame_bps:
-            random_sampled_t_idx = random.sample(list(range(obj_bps_data.shape[0])), 1)[0]
-            obj_bps_data = obj_bps_data[random_sampled_t_idx:random_sampled_t_idx+1] # 1 X N X 3
+            window_length = self.window_data_dict[index]['obj_rot_mat'].shape[0]
+            random_sampled_t_idx = random.sample(
+                list(range(window_length)), 1
+            )[0]
+            if os.path.exists(obj_bps_npy_path):
+                obj_bps_data = np.load(obj_bps_npy_path)
+                obj_bps_data = obj_bps_data[
+                    random_sampled_t_idx:random_sampled_t_idx + 1
+                ]
+            else:
+                obj_bps_data = self.compute_object_bps_at_frame(
+                    object_name,
+                    self.window_data_dict[index],
+                    random_sampled_t_idx,
+                )
+        else:
+            obj_bps_data = np.load(obj_bps_npy_path)
 
         obj_bps_data = torch.from_numpy(obj_bps_data)
 

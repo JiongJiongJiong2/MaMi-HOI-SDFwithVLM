@@ -31,8 +31,9 @@ from manip.model.sdf_utils import (
     sample_object_sdf_at_points,
     sdf_contact_losses,
     sdf_trajectory_ranking_loss,
-    point_to_triangle_unsigned_distance,
+    point_to_triangle_unsigned_distance_candidates,
     project_to_so3,
+    world_to_object_queries,
 )
 
 import time as PyTime
@@ -411,6 +412,19 @@ class ObjectCondGaussianDiffusion(nn.Module):
             opt, 'use_unsigned_surface_contact', False
         )
         self.use_sdf_contrastive = getattr(opt, 'use_sdf_contrastive', False)
+        self.use_hoi_dyn = getattr(opt, 'use_hoi_dyn', False)
+        self.loss_w_hoi_dyn = getattr(opt, 'loss_w_hoi_dyn', 0.0)
+        self.hoi_dyn_loss_type = getattr(opt, 'hoi_dyn_loss_type', 'pc')
+        self.hoi_dyn_dyn_loss_type = getattr(
+            opt, 'hoi_dyn_dyn_loss_type', 'res'
+        )
+        self.hoi_dyn_contact_source = getattr(
+            opt, 'hoi_dyn_contact_source', 'pred'
+        )
+        self.hoi_dyn_max_step = getattr(opt, 'hoi_dyn_max_step', 1)
+        self.hoi_dyn_rot_weight = getattr(opt, 'hoi_dyn_rot_weight', 0.05)
+        self.hoi_dyn_model = None
+        self.last_hoi_dyn_stats = {'enabled': 0.0}
         self.sdf_penetration_weight = getattr(opt, 'sdf_penetration_weight', 1.0)
         self.sdf_contact_weight = getattr(opt, 'sdf_contact_weight', 1.0)
         self.sdf_contrast_margin = getattr(opt, 'sdf_contrast_margin', 0.02)
@@ -1579,6 +1593,10 @@ class ObjectCondGaussianDiffusion(nn.Module):
         batch_losses = []
         observed_distances = []
         valid_query_count = 0
+        world_absmax = 0.0
+        object_point_absmax = 0.0
+        rotation_absmax = 0.0
+        translation_absmax = 0.0
         pred_obj_rot_for_query = project_to_so3(pred_obj_rot_mat)
 
         for batch_index in range(bs):
@@ -1586,6 +1604,7 @@ class ObjectCondGaussianDiffusion(nn.Module):
             triangles = self.get_unsigned_mesh_triangles(
                 ds, object_name
             ).to(pred_palm_world.device)
+            triangle_centroids = triangles.mean(dim=1)
             temporal_valid = valid_mask[batch_index].squeeze(-1) > 0.5
             hand_contact = contact_mask[batch_index] > 0.5
             selected = (temporal_valid.unsqueeze(-1) & hand_contact).nonzero(
@@ -1604,16 +1623,82 @@ class ObjectCondGaussianDiffusion(nn.Module):
             ]
             rotations = pred_obj_rot_for_query[batch_index, frames]
             translations = pred_obj_com_pos[batch_index, frames]
-            object_points = torch.matmul(
-                world_points - translations,
+            world_absmax = max(
+                world_absmax,
+                float(world_points.detach().abs().max().item()),
+            )
+            rotation_absmax = max(
+                rotation_absmax,
+                float(rotations.detach().abs().max().item()),
+            )
+            translation_absmax = max(
+                translation_absmax,
+                float(translations.detach().abs().max().item()),
+            )
+            object_points = world_to_object_queries(
+                world_points,
                 rotations,
+                translations,
             )
-            distances, _ = point_to_triangle_unsigned_distance(
+            object_point_absmax = max(
+                object_point_absmax,
+                float(object_points.detach().abs().max().item()),
+            )
+            if object_points.shape != world_points.shape:
+                raise RuntimeError(
+                    "Paired object-coordinate transform changed query count: "
+                    f"{world_points.shape} -> {object_points.shape}"
+                )
+            candidate_count = min(64, len(triangles))
+            centroid_distances = torch.cdist(
+                object_points.detach(),
+                triangle_centroids,
+            )
+            _, candidate_indices = torch.topk(
+                centroid_distances,
+                k=candidate_count,
+                dim=1,
+                largest=False,
+            )
+            candidate_triangles = triangles[candidate_indices]
+            distances = point_to_triangle_unsigned_distance_candidates(
                 object_points,
-                triangles,
-                point_chunk=32,
-                triangle_chunk=256,
+                candidate_triangles,
+                point_chunk=256,
             )
+            if distances.shape != hands.shape:
+                raise RuntimeError(
+                    "Surface-contact distances must pair one-to-one with "
+                    f"hands: {distances.shape} versus {hands.shape}"
+                )
+            if (
+                os.environ.get("U1U_GEOMETRY_DEBUG") == "1"
+                and not getattr(self, "_geometry_debug_done", False)
+            ):
+                geometry_grads = torch.autograd.grad(
+                    distances.sum(),
+                    (object_points, rotations, translations),
+                    retain_graph=True,
+                    allow_unused=True,
+                )
+                def gradient_debug(name, gradient):
+                    if gradient is None:
+                        return f"{name}=None"
+                    return (
+                        f"{name}_finite={bool(torch.isfinite(gradient).all().item())}"
+                        f",{name}_absmax={float(gradient.abs().max().item())}"
+                    )
+                print(
+                    "U1U geometry gradient debug: "
+                    + "; ".join(
+                        gradient_debug(name, gradient)
+                        for name, gradient in zip(
+                            ("object_points", "rotations", "translations"),
+                            geometry_grads,
+                        )
+                    )
+                )
+                self._geometry_debug_done = True
 
             object_targets = self.unsigned_clearance_targets.get(
                 object_name,
@@ -1651,9 +1736,122 @@ class ObjectCondGaussianDiffusion(nn.Module):
             "unsigned_contact_pred_distance_mean": distance_mean,
             "unsigned_contact_pred_distance_p95": distance_p95,
             "unsigned_contact_query_count": valid_query_count,
+            "unsigned_contact_world_absmax": world_absmax,
+            "unsigned_contact_object_point_absmax": object_point_absmax,
+            "unsigned_contact_rotation_absmax": rotation_absmax,
+            "unsigned_contact_translation_absmax": translation_absmax,
         }
         self.last_unsigned_surface_stats = stats
         return loss, stats
+
+    def set_hoi_dyn_model(self, hoi_dyn_model):
+        """Attach a frozen HOI-Dyn response model."""
+        self.__dict__['hoi_dyn_model'] = hoi_dyn_model
+        if hoi_dyn_model is not None:
+            hoi_dyn_model.eval()
+            for parameter in hoi_dyn_model.parameters():
+                parameter.requires_grad_(False)
+
+    def compute_hoi_dyn_regularization(
+        self,
+        x_start,
+        x_t,
+        t,
+        model_out,
+        data_dict,
+        padding_mask,
+        ds,
+    ):
+        """Compute the generated-branch HOI-Dyn residual loss."""
+        if not self.use_hoi_dyn or self.hoi_dyn_model is None:
+            return None, {'enabled': 0.0}
+        if data_dict is None:
+            raise ValueError('HOI-Dyn integration requires data_dict')
+        required = (
+            'input_obj_bps',
+            'reference_obj_rot_mat',
+            'rest_pose_obj_pts',
+        )
+        missing = [key for key in required if key not in data_dict]
+        if missing:
+            raise KeyError(
+                f'HOI-Dyn integration is missing data_dict keys: {missing}'
+            )
+
+        if self.objective == 'pred_noise':
+            pred_x0 = self.predict_start_from_noise(x_t, t, model_out)
+        elif self.objective == 'pred_x0':
+            pred_x0 = model_out
+        else:
+            raise ValueError(
+                f'Unsupported diffusion objective for HOI-Dyn: {self.objective}'
+            )
+        pred_x0 = pred_x0.clamp(-1.0, 1.0)
+
+        hoidyn_data = {
+            key: data_dict[key]
+            for key in required
+        }
+        dynamics_output = (
+            self.hoi_dyn_model.compute_dynamics_loss_for_generated_hoi(
+                {
+                    'gt_x0': x_start,
+                    'pred_x0': pred_x0,
+                    'padding_mask': padding_mask,
+                },
+                max_step=self.hoi_dyn_max_step,
+                data_dict=hoidyn_data,
+                dataset=ds,
+                loss_type=self.hoi_dyn_loss_type,
+                dyn_loss_type=self.hoi_dyn_dyn_loss_type,
+                rot_weight=self.hoi_dyn_rot_weight,
+                contact_source=self.hoi_dyn_contact_source,
+            )
+        )
+        regulate_loss = dynamics_output['regulate_dynamics']
+        if self.hoi_dyn_loss_type == 'pc':
+            keys = ('pc_loss',)
+        elif self.hoi_dyn_loss_type == 'trans_rot':
+            keys = ('trans_loss', 'rot_loss')
+        elif self.hoi_dyn_loss_type == 'trans':
+            keys = ('trans_loss',)
+        else:
+            raise ValueError(
+                f'Unsupported HOI-Dyn loss type: {self.hoi_dyn_loss_type}'
+            )
+
+        loss_per_sample = None
+        stats = {
+            'enabled': 1.0,
+            'contact_source': self.hoi_dyn_contact_source,
+            'loss_type': self.hoi_dyn_loss_type,
+            'dyn_loss_type': self.hoi_dyn_dyn_loss_type,
+            'max_step': float(self.hoi_dyn_max_step),
+            'rot_weight': float(self.hoi_dyn_rot_weight),
+        }
+        for key in keys:
+            if key not in regulate_loss:
+                raise KeyError(
+                    f'HOI-Dyn regulate loss is missing {key}'
+                )
+            value = regulate_loss[key]
+            if value.ndim == 0:
+                value = value.reshape(1)
+            reduced = value.reshape(value.shape[0], -1).mean(dim=1)
+            weight = (
+                self.hoi_dyn_rot_weight
+                if key == 'rot_loss'
+                else 1.0
+            )
+            weighted = reduced * weight
+            loss_per_sample = (
+                weighted
+                if loss_per_sample is None
+                else loss_per_sample + weighted
+            )
+            stats[key] = float(value.detach().mean().item())
+        stats['total'] = float(loss_per_sample.detach().mean().item())
+        return loss_per_sample, stats
 
     def p_losses(self, x_start, x_cond, t, language_embedding=None, noise=None, \
         padding_mask=None, rest_human_offsets=None, data_dict=None, ds=None,
@@ -1669,6 +1867,21 @@ class ObjectCondGaussianDiffusion(nn.Module):
         model_out = self.denoise_fn(x, t, x_cond, language_embedding=language_embedding, padding_mask=padding_mask,
                                      local_sdf_grid=local_sdf_grid, local_sdf_origin=local_sdf_origin,
                                      local_sdf_voxel_size=local_sdf_voxel_size, hand_query_points=hand_query_points)
+        if not torch.isfinite(model_out).all():
+            raise FloatingPointError(
+                "Denoiser produced non-finite model_out values"
+            )
+        if os.environ.get("TORCH_OVERFLOW_DEBUG") == "1":
+            print(
+                "Overflow debug: "
+                f"x_start_absmax={float(x_start.detach().abs().max().item())}, "
+                f"x_cond_absmax={float(x_cond.detach().abs().max().item())}, "
+                f"model_out_absmax={float(model_out.detach().abs().max().item())}, "
+                f"obj_absmax={float(model_out[:, :, :12].detach().abs().max().item())}, "
+                f"human_absmax={float(model_out[:, :, 12:12+24*3].detach().abs().max().item())}, "
+                f"rot_absmax={float(model_out[:, :, 12+24*3:12+24*3+22*6].detach().abs().max().item())}, "
+                f"contact_absmax={float(model_out[:, :, -4:].detach().abs().max().item())}"
+            )
 
         if self.objective == 'pred_noise':
             target = noise
@@ -1787,6 +2000,10 @@ class ObjectCondGaussianDiffusion(nn.Module):
             pred_obj_rel_rot_mat = model_out[:, :, 3:3+9].reshape(bs, num_steps, 3, 3)
             ref_obj_rot_mat = data_dict['reference_obj_rot_mat'].to(model_out.device) # BS X 1 X 3 X 3
             ref_obj_rot_mat = ref_obj_rot_mat.repeat(1, pred_obj_rel_rot_mat.shape[1], 1, 1) # BS X T X 3 X 3
+            if not torch.isfinite(ref_obj_rot_mat).all():
+                raise FloatingPointError(
+                    "reference_obj_rot_mat contains non-finite values"
+                )
             pred_obj_rot_mat = torch.matmul(pred_obj_rel_rot_mat, ref_obj_rot_mat.to(pred_obj_rel_rot_mat.device)) # BS X T X 3 X 3
 
             pred_normalized_obj_com_pos = model_out[:, :, :3]
@@ -1864,9 +2081,37 @@ class ObjectCondGaussianDiffusion(nn.Module):
                         ds,
                     )
 
+            hoi_dyn_loss, hoi_dyn_stats = self.compute_hoi_dyn_regularization(
+                x_start=x_start,
+                x_t=x,
+                t=t,
+                model_out=model_out,
+                data_dict=data_dict,
+                padding_mask=padding_mask,
+                ds=ds,
+            )
+            if hoi_dyn_loss is not None:
+                loss = loss + (
+                    self.loss_w_hoi_dyn * hoi_dyn_loss
+                )[:, None]
+            self.last_hoi_dyn_stats = hoi_dyn_stats
+
             return loss.mean(), loss_object.mean(), loss_human.mean(), \
                 foot_loss.mean(), fk_loss.mean(), loss_obj_pts.mean(), \
                 loss_sdf, loss_sdf_contrastive, loss_unsigned_contact
+
+        hoi_dyn_loss, hoi_dyn_stats = self.compute_hoi_dyn_regularization(
+            x_start=x_start,
+            x_t=x,
+            t=t,
+            model_out=model_out,
+            data_dict=data_dict,
+            padding_mask=padding_mask,
+            ds=ds,
+        )
+        if hoi_dyn_loss is not None:
+            loss = loss + (self.loss_w_hoi_dyn * hoi_dyn_loss)[:, None]
+        self.last_hoi_dyn_stats = hoi_dyn_stats
 
         return loss.mean(), loss_object.mean(), loss_human.mean()
 

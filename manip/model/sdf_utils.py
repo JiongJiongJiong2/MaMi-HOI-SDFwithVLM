@@ -9,6 +9,8 @@ All functions are pure (no nn.Module) and designed to work with
 F.grid_sample on 3D volumetric SDF grids.
 """
 
+import math
+
 import torch
 import torch.nn.functional as F
 
@@ -178,10 +180,85 @@ def point_to_triangle_unsigned_distance(
                 best_closest,
             )
 
-        distances.append(torch.sqrt(best))
+        positive = best > 0
+        # sqrt(0) has an infinite derivative. Return zero there and route the
+        # backward branch through a safe positive value to define zero
+        # subgradient at exact contact.
+        safe_best = torch.where(positive, best, torch.ones_like(best))
+        distance = torch.where(
+            positive,
+            torch.sqrt(safe_best),
+            torch.zeros_like(best),
+        )
+        distances.append(distance)
         closest_points.append(best_closest)
 
     return torch.cat(distances), torch.cat(closest_points)
+
+
+def point_to_triangle_unsigned_distance_candidates(
+    points,
+    candidate_triangles,
+    point_chunk=256,
+):
+    """Exact distance to a per-point candidate set of triangles."""
+    points = points.reshape(-1, 3)
+    candidate_triangles = candidate_triangles.reshape(-1, candidate_triangles.shape[-3], 3, 3)
+    if points.shape[0] != candidate_triangles.shape[0]:
+        raise ValueError(
+            "points and candidate_triangles must have the same leading dimension"
+        )
+    distances = []
+
+    for start in range(0, len(points), point_chunk):
+        q = points[start : start + point_chunk, None, :]
+        tri = candidate_triangles[start : start + point_chunk]
+        a, b, c = tri.unbind(dim=2)
+        normal = torch.cross(b - a, c - a, dim=-1)
+        nn = torch.einsum("nki,nki->nk", normal, normal)
+        safe_nn = torch.where(nn > 0, nn, torch.ones_like(nn))
+        signed_height = torch.einsum(
+            "nki,nki->nk", q - a, normal
+        ) / safe_nn
+        projection = q - signed_height[..., None] * normal
+
+        inside = (nn > 0)
+        for u, v in ((a, b), (b, c), (c, a)):
+            edge = v - u
+            side = torch.einsum(
+                "nki,nki->nk",
+                torch.cross(edge, projection - u, dim=-1),
+                normal,
+            )
+            inside &= side >= -1e-12 * nn
+
+        local_best = torch.where(
+            inside,
+            signed_height.square() * nn,
+            torch.full_like(signed_height, float("inf")),
+        )
+        for u, v in ((a, b), (b, c), (c, a)):
+            edge = v - u
+            ee = torch.einsum("nki,nki->nk", edge, edge)
+            t = torch.einsum(
+                "nki,nki->nk", q - u, edge
+            ) / torch.where(ee > 0, ee, torch.ones_like(ee))
+            edge_closest = u + torch.clamp(t, 0.0, 1.0)[..., None] * edge
+            delta = q - edge_closest
+            d2 = torch.einsum("nki,nki->nk", delta, delta)
+            local_best = torch.where(d2 < local_best, d2, local_best)
+
+        best = local_best.min(dim=1).values
+        positive = best > 0
+        safe_best = torch.where(positive, best, torch.ones_like(best))
+        distance = torch.where(
+            positive,
+            torch.sqrt(safe_best),
+            torch.zeros_like(best),
+        )
+        distances.append(distance)
+
+    return torch.cat(distances)
 
 
 def compute_sdf_gradients_fd(sdf_grid, query_points, origin, voxel_size, eps=1e-3):
@@ -336,6 +413,110 @@ def world_to_object_points(points_world, object_rot_mat, object_com_pos):
     # in the conventional column-vector notation.
     relative_points = points_world - object_com_pos[:, :, None, :]
     return torch.matmul(relative_points, object_rot_mat)
+
+
+def world_to_object_queries(points_world, object_rot_mat, object_com_pos):
+    """Transform paired world queries into object coordinates.
+
+    Args:
+        points_world: [N, 3].
+        object_rot_mat: [N, 3, 3], paired per query.
+        object_com_pos: [N, 3], paired per query.
+
+    This deliberately avoids ``matmul([N, 3], [N, 3, 3])``, whose broadcast
+    result is [N, N, 3] and would mix rotations across queries.
+    """
+    if points_world.ndim != 2 or points_world.shape[-1] != 3:
+        raise ValueError(f"points_world must be [N, 3], got {points_world.shape}")
+    if object_rot_mat.ndim != 3 or object_rot_mat.shape[-2:] != (3, 3):
+        raise ValueError(
+            f"object_rot_mat must be [N, 3, 3], got {object_rot_mat.shape}"
+        )
+    if object_com_pos.ndim != 2 or object_com_pos.shape[-1] != 3:
+        raise ValueError(
+            f"object_com_pos must be [N, 3], got {object_com_pos.shape}"
+        )
+    if not (
+        points_world.shape[0]
+        == object_rot_mat.shape[0]
+        == object_com_pos.shape[0]
+    ):
+        raise ValueError(
+            "points_world, object_rot_mat, and object_com_pos must have "
+            "the same leading dimension"
+        )
+
+    relative_points = points_world - object_com_pos
+    return torch.einsum("ni,nij->nj", relative_points, object_rot_mat)
+
+
+def validate_unsigned_clearance_targets(
+    targets,
+    expected_objects=None,
+):
+    """Validate the flat v2 train-only clearance target contract.
+
+    The trainer consumes top-level object names directly. A nested
+    ``objects`` wrapper therefore silently falls back to global medians and is
+    rejected here.
+    """
+    if not isinstance(targets, dict):
+        raise ValueError("Unsigned clearance targets must be a JSON object")
+    if targets.get("version") != 2:
+        raise ValueError(
+            "Unsigned clearance targets must use version 2; "
+            "regenerate the train-only calibration"
+        )
+    if targets.get("units") != "m":
+        raise ValueError("Unsigned clearance target units must be metres")
+
+    fallback = targets.get("fallback")
+    if not isinstance(fallback, dict):
+        raise ValueError("Unsigned clearance targets require a fallback object")
+    for hand in ("left", "right"):
+        value = fallback.get(hand)
+        if (
+            not isinstance(value, (int, float))
+            or isinstance(value, bool)
+            or not math.isfinite(value)
+            or value <= 0.0
+        ):
+            raise ValueError(
+                f"fallback.{hand} must be a finite positive metre value"
+            )
+
+    object_names = set(targets).difference({"version", "units", "fallback"})
+    if not object_names:
+        raise ValueError(
+            "Unsigned clearance targets contain no top-level objects; "
+            "the trainer would silently use fallback values"
+        )
+    for object_name in object_names:
+        values = targets[object_name]
+        if not isinstance(values, dict):
+            raise ValueError(
+                f"Unsigned clearance target for {object_name!r} must be an object"
+            )
+        for hand in ("left", "right"):
+            value = values.get(hand)
+            if (
+                not isinstance(value, (int, float))
+                or isinstance(value, bool)
+                or not math.isfinite(value)
+                or value <= 0.0
+            ):
+                raise ValueError(
+                    f"{object_name}.{hand} must be a finite positive metre value"
+                )
+
+    if expected_objects is not None:
+        missing = sorted(set(expected_objects).difference(object_names))
+        if missing:
+            raise ValueError(
+                "Unsigned clearance targets missing required objects: "
+                + ", ".join(missing)
+            )
+    return targets
 
 
 def build_dynamic_sdf_prediction_query(

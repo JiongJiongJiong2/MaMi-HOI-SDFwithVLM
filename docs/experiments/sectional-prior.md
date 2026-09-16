@@ -1,5 +1,7 @@
 # 接触条件极简截面几何：最小验证实验
 
+> **2026-09-14 superseded for execution：**BPR-01 已对独立 target、固定候选池和手工截面排序做过完整 clean-oracle validation，结果 FAIL；本文保留为 G0 历史协议。当前入口见 [Contact-Event World Model Plan](../../../docs/current/contact-event-world-model-plan-2026-09-14.md)。
+
 更新日期：2026-09-10。状态：**真实 validation 执行通过，原 G0 效果门槛 FAIL；held-out test 尚未运行。** AutoDL 已完成 63 个有效序列、2330 个双向样本；一次固定空间分散对照改善覆盖，但仍未建立可靠优势。当前优先继续候选区域预测，不做接触优化。详见[中文实测报告](g0-validation-20260910-zh.md)。AutoDL 的统一目录、shared split、环境记录和备份方式见工作区 [`服务器指南.md`](../../../服务器指南.md)。
 
 这个实验先回答一个比“它能否提高 diffusion/VLM”更基础、也更容易证伪的问题：**已知一只手的接触位置后，由重力方向和该接触点定义的极简截面几何，能否比随机搜索或中心对跖点更好地缩小另一只手的接触区域？**

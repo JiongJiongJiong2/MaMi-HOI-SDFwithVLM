@@ -3,21 +3,19 @@ set -euo pipefail
 
 : "${DATA_ROOT:?Set DATA_ROOT to the processed_data directory.}"
 : "${BASELINE_CKPT:?Set BASELINE_CKPT to a MaMi-HOI baseline checkpoint.}"
-: "${OUTPUT_ROOT:?Set OUTPUT_ROOT for U1-U screening artifacts.}"
+: "${OUTPUT_ROOT:?Set OUTPUT_ROOT for U0-FT artifacts.}"
 : "${SPLIT_MANIFEST:?Set SPLIT_MANIFEST to the frozen validation/test JSON.}"
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export PYTHONPATH="${REPO_ROOT}:${REPO_ROOT}/t2m_eval${PYTHONPATH:+:${PYTHONPATH}}"
 cd "${REPO_ROOT}"
 
-EXP_NAME="${EXP_NAME:-U1U_unsigned_contact_smoke}"
+EXP_NAME="${EXP_NAME:-U0_FT_300}"
 TRAIN_STEPS="${TRAIN_STEPS:-300}"
 SAVE_EVERY="${SAVE_EVERY:-300}"
-LOSS_W_UNSIGNED_CONTACT="${LOSS_W_UNSIGNED_CONTACT:-1.0}"
 SEED="${SEED:-1}"
-SMOKE_TEST="${SMOKE_TEST:-1}"
-DISABLE_AMP="${DISABLE_AMP:-0}"
-CLEARANCE_JSON="${CLEARANCE_JSON:-tests/fixtures/unsigned_contact_clearance_v1.json}"
+SMOKE_TEST="${SMOKE_TEST:-0}"
+DISABLE_AMP="${DISABLE_AMP:-1}"
 export SMPLH_PATH="${SMPLH_PATH:-${DATA_ROOT}/smpl_all_models/smplh_amass}"
 
 run_dir="${OUTPUT_ROOT}/${EXP_NAME}"
@@ -32,7 +30,7 @@ args=(
   --seed="${SEED}"
   --experiment_split_manifest="${SPLIT_MANIFEST}"
   --eval_split=validation
-  --wandb_pj_name="chois_u1u_unsigned_contact"
+  --wandb_pj_name="chois_u0_ft"
   --entity=""
   --finetune_model="${BASELINE_CKPT}"
   --train_num_steps="${TRAIN_STEPS}"
@@ -44,9 +42,6 @@ args=(
   --loss_w_feet=1
   --loss_w_fk=0.5
   --loss_w_obj_pts=1
-  --use_unsigned_surface_contact
-  --unsigned_clearance_json="${CLEARANCE_JSON}"
-  --loss_w_unsigned_surface_contact="${LOSS_W_UNSIGNED_CONTACT}"
 )
 
 if [[ "${SMOKE_TEST}" == "1" ]]; then

@@ -530,7 +530,12 @@ def load_gt_hand_rows(csv_path: Path, objects: Sequence[str]) -> List[Dict[str, 
         for row in csv.DictReader(handle):
             if row.get("object") not in objects:
                 continue
-            if row.get("stratum") not in ("gt_palm_contact", "gt_palm_noncontact"):
+            stratum = row.get("stratum")
+            if stratum not in (
+                "gt_palm_contact",
+                "gt_palm_noncontact",
+                "predicted_model",
+            ):
                 continue
             try:
                 point = np.array(
@@ -539,12 +544,22 @@ def load_gt_hand_rows(csv_path: Path, objects: Sequence[str]) -> List[Dict[str, 
                 )
             except (KeyError, ValueError) as error:
                 raise ValueError(f"Invalid GT query row: {row}") from error
+            raw_contact = row.get("contact_annotation")
+            contact_annotation = (
+                int(raw_contact)
+                if raw_contact not in (None, "")
+                else None
+            )
             rows.append(
                 {
                     "object": row["object"],
-                    "source_class": "gt_hand",
-                    "source_stratum": row["stratum"],
-                    "contact_annotation": int(row.get("contact_annotation") or -1),
+                    "source_class": (
+                        "predicted_model"
+                        if stratum == "predicted_model"
+                        else "gt_hand"
+                    ),
+                    "source_stratum": stratum,
+                    "contact_annotation": contact_annotation,
                     "sequence": row.get("sequence") or "",
                     "frame": int(row.get("frame") or -1),
                     "joint": int(row.get("joint") or -1),
@@ -553,7 +568,11 @@ def load_gt_hand_rows(csv_path: Path, objects: Sequence[str]) -> List[Dict[str, 
                     "z": float(point[2]),
                     "label": None,
                     "region": None,
-                    "source": "GT joints 22/23 canonical palm proxies from frozen BPS diagnostic; not model predictions",
+                    "source": (
+                        "Model-predicted joints 22/23 canonical palm proxies"
+                        if stratum == "predicted_model"
+                        else "GT joints 22/23 canonical palm proxies from frozen BPS diagnostic; not model predictions"
+                    ),
                 }
             )
     return rows
@@ -602,7 +621,11 @@ def add_perturbations(rows: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:
         base_copy["perturbation_sign"] = None
         output.append(base_copy)
 
-        magnitudes = (0.0005, 0.0010) if base["source_class"] == "gt_hand" else (0.0005,)
+        magnitudes = (
+            (0.0005, 0.0010)
+            if base["source_class"] in ("gt_hand", "predicted_model")
+            else (0.0005,)
+        )
         point = np.array([base["x"], base["y"], base["z"]], dtype=np.float64)
         for axis in range(3):
             for sign in (-1, 1):
@@ -637,7 +660,13 @@ def build_rows(
     manual_rows, manifest = load_manual_rows(manifest_path, objects)
     rows = add_perturbations([*gt_rows, *manual_rows])
     return rows, {
-        "gt_palm_queries": len(gt_rows),
+        "gt_palm_queries": sum(
+            row["source_class"] == "gt_hand" for row in gt_rows
+        ),
+        "predicted_model_queries": sum(
+            row["source_class"] == "predicted_model" for row in gt_rows
+        ),
+        "hand_query_rows": len(gt_rows),
         "reviewed_manual_queries": len(manual_rows),
         "total_rows_with_perturbations": len(rows),
     }
@@ -866,7 +895,7 @@ def stability_metrics(
         }
 
     summary: Dict[str, Any] = {}
-    for source_class in ("gt_hand", "reviewed_manual"):
+    for source_class in ("gt_hand", "predicted_model", "reviewed_manual"):
         for band, _, _ in BANDS:
             subset = [
                 record

@@ -1,0 +1,15 @@
+model:
+  history_win: 1
+  future_win: 1
+  max_step: 2
+  depth: 4
+  feat_dim: 64
+  head: 8
+  out_trans_dim: 3
+  out_rot_dim: 9
+  rot_loss_method: theta
+  use_delta_motion: true
+  use_higher_order: false
+  use_contact_split_loss: true
+  use_static_object_loss: false
+  use_floor_contact_for_static: false

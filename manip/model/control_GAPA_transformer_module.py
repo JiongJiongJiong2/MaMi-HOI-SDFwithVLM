@@ -279,8 +279,6 @@ class GeometryAwareProximityAdapter(nn.Module):
             diff_fp32 = diff.float()
             dist_sq = torch.sum(diff_fp32 ** 2, dim=-1)
             dist_sq = torch.clamp(dist_sq, max=1e4)
-        self.dist_scale.data = torch.tensor(20000)
-
         dist_bias = -1.0 * self.dist_scale * dist_sq
 
         attn_score = content_score + dist_bias.to(content_score.dtype)

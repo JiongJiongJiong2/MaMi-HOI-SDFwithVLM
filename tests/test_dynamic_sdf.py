@@ -10,12 +10,18 @@ from manip.model.sdf_utils import (
     object_sdf_in_bounds_mask,
     object_to_world_points,
     point_to_triangle_unsigned_distance,
+    point_to_triangle_unsigned_distance_candidates,
     project_to_so3,
     rotation_validity_statistics,
     sample_object_sdf_at_points,
     sdf_contact_losses,
     sdf_trajectory_ranking_loss,
+    validate_unsigned_clearance_targets,
     world_to_object_points,
+    world_to_object_queries,
+)
+from manip.model.control_GAPA_transformer_module import (
+    GeometryAwareProximityAdapter,
 )
 
 
@@ -105,6 +111,95 @@ class DynamicSDFTests(unittest.TestCase):
         self.assertTrue(
             torch.allclose(transformed_canonical, canonical, atol=1e-6)
         )
+
+    def test_world_to_object_queries_use_paired_rotations(self):
+        rotations = torch.stack(
+            (
+                torch.eye(3),
+                torch.tensor(
+                    [
+                        [0.0, -1.0, 0.0],
+                        [1.0, 0.0, 0.0],
+                        [0.0, 0.0, 1.0],
+                    ]
+                ),
+                torch.diag(torch.tensor([1.0, -1.0, -1.0])),
+            )
+        )
+        points_world = torch.tensor(
+            [
+                [1.0, 0.0, 0.0],
+                [1.0, 0.0, 0.0],
+                [1.0, 0.0, 0.0],
+            ]
+        )
+        object_com = torch.zeros(3, 3)
+        points_object = world_to_object_queries(
+            points_world,
+            rotations,
+            object_com,
+        )
+        expected = torch.tensor(
+            [
+                [1.0, 0.0, 0.0],
+                [0.0, -1.0, 0.0],
+                [1.0, 0.0, 0.0],
+            ]
+        )
+        self.assertEqual(tuple(points_object.shape), (3, 3))
+        self.assertTrue(torch.allclose(points_object, expected, atol=1e-6))
+
+    def test_world_to_object_queries_nonidentity_round_trip(self):
+        rotation = torch.tensor(
+            [
+                [0.0, -1.0, 0.0],
+                [1.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0],
+            ]
+        )
+        points_object = torch.tensor(
+            [
+                [0.1, 0.2, 0.3],
+                [0.3, -0.1, 0.2],
+            ]
+        )
+        translation = torch.tensor([0.4, -0.2, 0.7])
+        points_world = (
+            torch.matmul(points_object, rotation.T) + translation
+        )
+        recovered = world_to_object_queries(
+            points_world,
+            rotation[None].expand(len(points_object), -1, -1),
+            translation[None].expand(len(points_object), -1),
+        )
+        self.assertTrue(torch.allclose(recovered, points_object, atol=1e-6))
+
+    def test_unsigned_clearance_flat_schema_is_consumed(self):
+        targets = {
+            "version": 2,
+            "units": "m",
+            "fallback": {"left": 0.02, "right": 0.021},
+            "plasticbox": {"left": 0.023, "right": 0.022},
+        }
+        self.assertIs(
+            validate_unsigned_clearance_targets(targets),
+            targets,
+        )
+
+    def test_unsigned_clearance_schema_rejects_nested_wrapper(self):
+        targets = {
+            "version": 2,
+            "units": "m",
+            "fallback": {"left": 0.02, "right": 0.021},
+            "objects": {
+                "plasticbox": {
+                    "left": {"median_m": 0.023},
+                    "right": {"median_m": 0.022},
+                }
+            },
+        }
+        with self.assertRaises(ValueError):
+            validate_unsigned_clearance_targets(targets)
 
     def test_so3_projection_is_proper_and_differentiable(self):
         raw = torch.tensor(
@@ -250,6 +345,25 @@ class DynamicSDFTests(unittest.TestCase):
         loss_bad = sdf_trajectory_ranking_loss(pred_bad, gt, contact, valid)
         self.assertLess(loss_good.item(), loss_bad.item())
 
+    def test_geometry_adapter_preserves_float_scale_on_device(self):
+        adapter = GeometryAwareProximityAdapter(
+            d_model=8,
+            n_head=2,
+            d_k=4,
+            d_v=4,
+        )
+        motion = torch.randn(1, 3, 8)
+        bps = torch.randn(1, 5, 8)
+        output = adapter(motion, bps)
+        self.assertEqual(tuple(output.shape), (1, 3, 8))
+        self.assertEqual(adapter.dist_scale.dtype, motion.dtype)
+        self.assertEqual(adapter.dist_scale.device, motion.device)
+        self.assertAlmostEqual(
+            adapter.dist_scale.item(),
+            math.log(10.0),
+            places=6,
+        )
+
     def test_empty_contact_mask_has_zero_ranking_loss(self):
         values = torch.zeros(1, 3, 2)
         zero_contact = torch.zeros(1, 3, 2)
@@ -278,6 +392,33 @@ class DynamicSDFTests(unittest.TestCase):
         )
         self.assertTrue(torch.isfinite(closest).all())
 
+    def test_point_to_triangle_candidate_distance_matches_full_set(self):
+        points = torch.tensor(
+            [
+                [0.2, 0.2, 0.3],
+                [0.6, -0.2, 0.3],
+            ],
+            dtype=torch.float32,
+        )
+        triangles = torch.tensor(
+            [
+                [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
+                [[0.2, 0.2, 0.1], [0.6, 0.2, 0.1], [0.2, 0.6, 0.1]],
+            ],
+            dtype=torch.float32,
+        )
+        expected, _ = point_to_triangle_unsigned_distance(
+            points,
+            triangles,
+        )
+        candidates = triangles[None, :, :, :].expand(2, -1, -1, -1)
+        actual = point_to_triangle_unsigned_distance_candidates(
+            points,
+            candidates,
+            point_chunk=2,
+        )
+        self.assertTrue(torch.allclose(actual, expected, atol=1e-6))
+
     def test_point_to_triangle_distance_is_differentiable(self):
         points = torch.tensor(
             [[0.2, 0.2, 0.3]],
@@ -294,6 +435,59 @@ class DynamicSDFTests(unittest.TestCase):
         distance.sum().backward()
         self.assertTrue(torch.isfinite(points.grad).all())
         self.assertGreater(points.grad.abs().sum().item(), 0.0)
+
+    def test_point_to_triangle_zero_distance_has_zero_subgradient(self):
+        points = torch.tensor(
+            [[0.2, 0.2, 0.0]],
+            requires_grad=True,
+            dtype=torch.float32,
+        )
+        triangle = torch.tensor([
+            [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]
+        ], dtype=torch.float32)
+        distance, closest = point_to_triangle_unsigned_distance(
+            points,
+            triangle,
+        )
+        self.assertEqual(distance.item(), 0.0)
+        self.assertTrue(
+            torch.allclose(
+                closest,
+                torch.tensor([[0.2, 0.2, 0.0]]),
+                atol=1e-6,
+            )
+        )
+        distance.sum().backward()
+        self.assertTrue(torch.isfinite(points.grad).all())
+        self.assertTrue(torch.equal(points.grad, torch.zeros_like(points.grad)))
+
+    def test_point_to_triangle_near_zero_edge_and_degenerate_faces(self):
+        triangle = torch.tensor([
+            [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]
+        ], dtype=torch.float32)
+        points = torch.tensor(
+            [
+                [0.2, 0.2, 1e-6],
+                [0.5, 0.0, 0.0],
+                [0.0, 0.0, 0.0],
+            ],
+            requires_grad=True,
+            dtype=torch.float32,
+        )
+        distance, _ = point_to_triangle_unsigned_distance(points, triangle)
+        self.assertTrue(torch.isfinite(distance).all())
+        self.assertAlmostEqual(distance[0].item(), 1e-6, places=12)
+        distance.sum().backward()
+        self.assertTrue(torch.isfinite(points.grad).all())
+
+        degenerate = torch.tensor([
+            [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
+        ], dtype=torch.float32)
+        degenerate_distance, _ = point_to_triangle_unsigned_distance(
+            torch.tensor([[0.5, 0.0, 0.3]], dtype=torch.float32),
+            degenerate,
+        )
+        self.assertAlmostEqual(degenerate_distance.item(), 0.3, places=6)
 
 
 if __name__ == "__main__":

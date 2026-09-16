@@ -6,11 +6,21 @@ set -euo pipefail
 : "${OUTPUT_ROOT:?Set OUTPUT_ROOT for evaluation artifacts.}"
 : "${SPLIT_MANIFEST:?Set SPLIT_MANIFEST to the frozen validation/test JSON.}"
 
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+export PYTHONPATH="${REPO_ROOT}:${REPO_ROOT}/t2m_eval${PYTHONPATH:+:${PYTHONPATH}}"
+cd "${REPO_ROOT}"
+
 ROLE="${ROLE:-U0}"
 EVAL_SPLIT="${EVAL_SPLIT:-test}"
 GUIDANCE="${GUIDANCE:-off}"
 SEED="${SEED:-1}"
 ENABLE_DYNAMIC_SDF_DIAGNOSTICS="${ENABLE_DYNAMIC_SDF_DIAGNOSTICS:-0}"
+SKIP_EVAL_MESH_EXPORT="${SKIP_EVAL_MESH_EXPORT:-1}"
+COMPUTE_HAND_CONTACT_METRICS_V3="${COMPUTE_HAND_CONTACT_METRICS_V3:-1}"
+if [[ "${COMPUTE_HAND_SURFACE_METRICS_V2:-0}" == "1" ]]; then
+  COMPUTE_HAND_CONTACT_METRICS_V3=1
+fi
+DISABLE_AMP="${DISABLE_AMP:-0}"
 export SMPLH_PATH="${SMPLH_PATH:-${DATA_ROOT}/smpl_all_models/smplh_amass}"
 
 if [[ "${GUIDANCE}" != "off" && "${GUIDANCE}" != "on" ]]; then
@@ -49,11 +59,20 @@ args=(
   --compute_metrics
 )
 
+if [[ "${COMPUTE_HAND_CONTACT_METRICS_V3}" == "1" ]]; then
+  args+=(--compute_hand_contact_metrics_v3)
+fi
 if [[ "${GUIDANCE}" == "on" ]]; then
   args+=(--use_guidance_in_denoising)
 fi
 if [[ "${ENABLE_DYNAMIC_SDF_DIAGNOSTICS}" == "1" ]]; then
   args+=(--use_dynamic_sdf --dynamic_sdf_diagnostics)
+fi
+if [[ "${SKIP_EVAL_MESH_EXPORT}" == "1" ]]; then
+  args+=(--skip_eval_mesh_export)
+fi
+if [[ "${DISABLE_AMP}" == "1" ]]; then
+  args+=(--disable_amp)
 fi
 
 python ./train/trainer_control_GAPA_chois.py "${args[@]}" \

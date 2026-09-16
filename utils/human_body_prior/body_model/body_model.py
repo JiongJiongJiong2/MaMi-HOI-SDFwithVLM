@@ -96,6 +96,7 @@ class BodyModel(nn.Module):
         if self.model_type == 'smplx':
             if smpl_dict['shapedirs'].shape[-1] > 300:
                 begin_shape_id = 300
+                num_expressions = smpl_dict['shapedirs'].shape[-1] - begin_shape_id
             else:
                 begin_shape_id = 10
                 num_expressions = smpl_dict['shapedirs'].shape[-1] - 10

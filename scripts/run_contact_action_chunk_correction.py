@@ -16,6 +16,10 @@ from manip.world_model.contact_action.features import (
     NORMAL_SLICE,
 )
 from manip.world_model.contact_action.geometry import build_geometry_bank
+from manip.world_model.contact_action.episodes import (
+    aggregate_episode_metrics,
+    contact_episode_metrics,
+)
 from manip.world_model.contact_action.model import ContactActionTransition
 from manip.world_model.contact_action.model_geometry import (
     ContactActionGeometryTransition,
@@ -70,6 +74,7 @@ def parse_args():
         default="analytic",
     )
     parser.add_argument("--event_weight", type=float, default=0.25)
+    parser.add_argument("--stable_min_frames", type=int, default=3)
     parser.add_argument("--geometry_data_root", default="")
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--seed", type=int, default=1)
@@ -497,6 +502,14 @@ def main():
                 contact_f1(predicted_contact[index], ground_truth_window)
                 for index in range(batch_size)
             ]
+            candidate_episode_metrics = [
+                contact_episode_metrics(
+                    predicted_contact[index],
+                    ground_truth_window,
+                    stable_min_frames=args.stable_min_frames,
+                )
+                for index in range(batch_size)
+            ]
             event_probability = torch.sigmoid(
                 output["contact_logits"][..., hand_index]
             ).mean(dim=1).detach().cpu().numpy()
@@ -582,6 +595,7 @@ def main():
                 "current_index": current_index,
                 "frame_indices": frame_indices.tolist(),
                 "selected_name": candidates[selected_index][0],
+                "selected_index": selected_index,
                 "selected_f1": candidate_f1[selected_index],
                 "base_f1": candidate_f1[0],
                 "random_mean_f1": float(np.mean([
@@ -590,6 +604,13 @@ def main():
                 "oracle_f1": float(np.max(candidate_f1)),
                 "candidate_costs": costs.detach().cpu().tolist(),
                 "candidate_f1": candidate_f1,
+                "candidate_names": [
+                    name for name, _ in candidates
+                ],
+                "candidate_contact_sequences": (
+                    predicted_contact.astype(np.int8).tolist()
+                ),
+                "candidate_episode_metrics": candidate_episode_metrics,
                 "candidate_clearance_abs": cost_components[
                     "clearance_abs"
                 ].detach().cpu().tolist(),
@@ -641,9 +662,33 @@ def main():
         "residual_mask": checkpoint["args"].get("residual_mask", "palm"),
         "geometry_mode": geometry_mode,
         "penetration_weight": args.penetration_weight,
+        "episode_protocol": {
+            "stable_min_frames": int(args.stable_min_frames),
+        },
         "events": events,
     }
     if events:
+        result["episode_metrics"] = {
+            "base": aggregate_episode_metrics([
+                event["candidate_episode_metrics"][0]
+                for event in events
+            ]),
+            "selected": aggregate_episode_metrics([
+                event["candidate_episode_metrics"][
+                    event["selected_index"]
+                ]
+                for event in events
+            ]),
+            "random": aggregate_episode_metrics([
+                metric
+                for event in events
+                for name, metric in zip(
+                    event["candidate_names"],
+                    event["candidate_episode_metrics"],
+                )
+                if name.startswith("random_")
+            ]),
+        }
         result["selected_minus_base"] = {
             "mean": float(np.mean([
                 event["selected_f1"] - event["base_f1"]

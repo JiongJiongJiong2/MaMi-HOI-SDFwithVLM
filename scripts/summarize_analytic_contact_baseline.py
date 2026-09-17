@@ -35,6 +35,10 @@ def load_events(root, cohort):
         raise ValueError(f"expected geom_only result: {path}")
     if data["rollout_mode"] != "analytic":
         raise ValueError(f"expected analytic rollout: {path}")
+    if data["events"] and "candidate_episode_metrics" not in data["events"][0]:
+        raise ValueError(
+            "episode metrics are missing; rerun with the updated scorer"
+        )
     return data
 
 
@@ -44,6 +48,89 @@ def selected_penetration(event):
             CANDIDATE_NAMES.index(event["selected_name"])
         ]
     )
+
+
+def episode_records(event, arm):
+    if arm == "base":
+        return [event["candidate_episode_metrics"][0]]
+    if arm == "selected":
+        return [
+            event["candidate_episode_metrics"][event["selected_index"]]
+        ]
+    if arm == "random":
+        return [
+            metric
+            for name, metric in zip(
+                event["candidate_names"],
+                event["candidate_episode_metrics"],
+            )
+            if name.startswith("random_")
+        ]
+    raise ValueError(f"unsupported arm: {arm}")
+
+
+def mean_defined(values):
+    values = [float(value) for value in values if value is not None]
+    return float(np.mean(values)) if values else None
+
+
+def summarize_episode_arm(events, arm):
+    records = [
+        record
+        for event in events
+        for record in episode_records(event, arm)
+    ]
+    return {
+        "record_count": len(records),
+        "stable_contact_success_rate": mean_defined([
+            record.get("stable_contact_success")
+            for record in records
+        ]),
+        "stable_contact_false_positive_rate": mean_defined([
+            record.get("stable_contact_false_positive")
+            for record in records
+        ]),
+        "contact_precision": mean_defined([
+            record.get("contact_precision")
+            for record in records
+        ]),
+        "contact_recall": mean_defined([
+            record.get("contact_recall")
+            for record in records
+        ]),
+        "contact_f1": mean_defined([
+            record.get("contact_f1")
+            for record in records
+        ]),
+        "dropout_count": mean_defined([
+            record.get("dropout_count")
+            for record in records
+        ]),
+        "onset_delay_frames": mean_defined([
+            record.get("onset_delay_frames")
+            for record in records
+        ]),
+        "early_contact_frames": mean_defined([
+            record.get("early_contact_frames")
+            for record in records
+        ]),
+        "late_contact_frames": mean_defined([
+            record.get("late_contact_frames")
+            for record in records
+        ]),
+        "release_delay_frames": mean_defined([
+            record.get("release_delay_frames")
+            for record in records
+        ]),
+        "predicted_contact_episode_count": mean_defined([
+            record.get("predicted_contact_episode_count")
+            for record in records
+        ]),
+        "longest_predicted_episode_frames": mean_defined([
+            record.get("longest_predicted_episode_frames")
+            for record in records
+        ]),
+    }
 
 
 def bootstrap(values, samples, seed):
@@ -129,6 +216,10 @@ def summarize_cohort(data, cohort, samples, seed):
             samples,
             seed + 4,
         ),
+        "episode_metrics": {
+            arm: summarize_episode_arm(events, arm)
+            for arm in ("base", "selected", "random")
+        },
     }
 
 
@@ -199,6 +290,10 @@ def summarize_combined(cohorts, samples):
             samples,
             1004,
         ),
+        "episode_metrics": {
+            arm: summarize_episode_arm(events, arm)
+            for arm in ("base", "selected", "random")
+        },
     }
 
 

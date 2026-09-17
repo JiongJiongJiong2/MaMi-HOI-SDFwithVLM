@@ -115,7 +115,9 @@ def forward_metrics(prediction, target):
 
 
 def per_sample_action_error(prediction, target):
-    return (prediction - target).abs().mean(dim=(1, 2))
+    return (prediction - target).abs().mean(
+        dim=tuple(range(1, prediction.ndim))
+    )
 
 
 def cluster_bootstrap_interval(values, groups, samples, seed):
@@ -150,6 +152,7 @@ def evaluate(
     split,
     args,
     constant_action,
+    bootstrap_samples=0,
 ):
     forward_model.eval()
     inverse_model.eval()
@@ -254,33 +257,45 @@ def evaluate(
                 "mean": float(
                     (inverse_error - shuffled_error).mean().item()
                 ),
-                "ci95": cluster_bootstrap_interval(
-                    (inverse_error - shuffled_error).cpu().numpy(),
-                    sequence_index,
-                    args.bootstrap_samples,
-                    args.seed + horizon,
+                "ci95": (
+                    cluster_bootstrap_interval(
+                        (inverse_error - shuffled_error).cpu().numpy(),
+                        sequence_index,
+                        bootstrap_samples,
+                        args.seed + horizon,
+                    )
+                    if bootstrap_samples > 0
+                    else None
                 ),
             },
             "inverse_minus_constant": {
                 "mean": float(
                     (inverse_error - constant_error).mean().item()
                 ),
-                "ci95": cluster_bootstrap_interval(
-                    (inverse_error - constant_error).cpu().numpy(),
-                    sequence_index,
-                    args.bootstrap_samples,
-                    args.seed + 100 + horizon,
+                "ci95": (
+                    cluster_bootstrap_interval(
+                        (inverse_error - constant_error).cpu().numpy(),
+                        sequence_index,
+                        bootstrap_samples,
+                        args.seed + 100 + horizon,
+                    )
+                    if bootstrap_samples > 0
+                    else None
                 ),
             },
             "cycle_minus_inverse_true": {
                 "mean": float(
                     (cycle_error - inverse_error).mean().item()
                 ),
-                "ci95": cluster_bootstrap_interval(
-                    (cycle_error - inverse_error).cpu().numpy(),
-                    sequence_index,
-                    args.bootstrap_samples,
-                    args.seed + 200 + horizon,
+                "ci95": (
+                    cluster_bootstrap_interval(
+                        (cycle_error - inverse_error).cpu().numpy(),
+                        sequence_index,
+                        bootstrap_samples,
+                        args.seed + 200 + horizon,
+                    )
+                    if bootstrap_samples > 0
+                    else None
                 ),
             },
             "action_stride_energy": float(action_energy.mean().item()),
@@ -380,7 +395,8 @@ def train(args):
             inverse_model,
             val_split,
             args,
-            train_hand_actions.mean(dim=(0, 1)),
+            train_hand_actions.mean(dim=0),
+            bootstrap_samples=0,
         )
         val_loss = float(np.mean([
             metrics["forward"]["object_translation_l1"]
@@ -418,7 +434,8 @@ def train(args):
         inverse_model,
         val_split,
         args,
-        train_hand_actions.mean(dim=(0, 1)),
+        train_hand_actions.mean(dim=0),
+        bootstrap_samples=args.bootstrap_samples,
     )
     metrics["history"] = history
     metrics["best_epoch"] = int(checkpoint["epoch"])
@@ -445,4 +462,3 @@ def train(args):
 
 if __name__ == "__main__":
     train(parse_args())
-

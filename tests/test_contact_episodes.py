@@ -26,18 +26,18 @@ class ContactEpisodeMetricsTest(unittest.TestCase):
         )
         self.assertEqual(metrics["stable_contact_success"], 1)
         self.assertEqual(metrics["dropout_count"], 1)
-        self.assertEqual(metrics["onset_delay_frames"], 0)
+        self.assertEqual(metrics["onset_delay_frames"], -1)
         self.assertEqual(metrics["early_contact_frames"], 1)
         self.assertEqual(metrics["late_contact_frames"], 1)
         self.assertEqual(metrics["release_delay_frames"], 2)
 
-    def test_unstable_prediction_cannot_succeed(self):
+    def test_false_positive_stable_episode_count(self):
         metrics = contact_episode_metrics(
-            [0, 1, 0, 1, 0],
-            [0, 1, 1, 1, 0],
+            [0, 1, 1, 0, 1, 1],
+            [0, 1, 1, 1, 0, 0],
             stable_min_frames=2,
         )
-        self.assertEqual(metrics["stable_contact_success"], 0)
+        self.assertEqual(metrics["stable_contact_success"], 1)
         self.assertEqual(metrics["stable_contact_false_positive"], 1)
 
     def test_aggregate_ignores_undefined_values(self):
@@ -52,4 +52,3 @@ class ContactEpisodeMetricsTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

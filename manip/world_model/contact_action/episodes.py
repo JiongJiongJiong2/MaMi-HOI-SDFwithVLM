@@ -97,11 +97,14 @@ def contact_episode_metrics(
         for predicted_run in predicted_stable_runs
         for truth_run in ground_truth_runs
     ))
-    stable_contact_false_positive = int(bool(predicted_stable_runs) and not any(
-        _runs_overlap(predicted_run, truth_run)
+    stable_contact_false_positive = sum(
+        1
         for predicted_run in predicted_stable_runs
-        for truth_run in ground_truth_runs
-    ))
+        if not any(
+            _runs_overlap(predicted_run, truth_run)
+            for truth_run in ground_truth_runs
+        )
+    )
 
     dropout_count = 0
     if (
@@ -197,4 +200,3 @@ def aggregate_episode_metrics(records):
         )
         aggregate[f"{key}_defined_count"] = len(values)
     return aggregate
-

@@ -68,6 +68,11 @@ def aligned_ground_truth(event, frames):
     )
 
 
+def mean_defined(values):
+    values = [float(value) for value in values if value is not None]
+    return float(np.mean(values)) if values else None
+
+
 def pair_metrics(
     left_prediction,
     right_prediction,
@@ -86,15 +91,18 @@ def pair_metrics(
         stable_min_frames=stable_min_frames,
     )
     return {
-        "joint_f1": float(
-            (left["contact_f1"] + right["contact_f1"]) / 2.0
-        ),
-        "joint_precision": float(
-            (left["contact_precision"] + right["contact_precision"]) / 2.0
-        ),
-        "joint_recall": float(
-            (left["contact_recall"] + right["contact_recall"]) / 2.0
-        ),
+        "joint_f1": mean_defined([
+            left["contact_f1"],
+            right["contact_f1"],
+        ]),
+        "joint_precision": mean_defined([
+            left["contact_precision"],
+            right["contact_precision"],
+        ]),
+        "joint_recall": mean_defined([
+            left["contact_recall"],
+            right["contact_recall"],
+        ]),
         "both_stable_contact_success": int(
             left["stable_contact_success"]
             and right["stable_contact_success"]
@@ -132,6 +140,8 @@ def evaluate_pair(left, right, penetration_weight, stable_min_frames):
     ])
     left_truth = aligned_ground_truth(left, common_frames)
     right_truth = aligned_ground_truth(right, common_frames)
+    if not left_truth.any() and not right_truth.any():
+        return None
 
     left_scores = (
         left_predictions.mean(axis=1)
@@ -199,10 +209,10 @@ def evaluate_pair(left, right, penetration_weight, stable_min_frames):
 
 
 def mean_metric(rows, policy, metric):
-    return float(np.mean([
+    return mean_defined([
         row[policy][metric]
         for row in rows
-    ]))
+    ])
 
 
 def bootstrap_mean(values, samples, seed):
@@ -241,6 +251,10 @@ def main():
     oracle_minus_independent = np.asarray([
         row["oracle"]["joint_f1"] - row["independent"]["joint_f1"]
         for row in rows
+        if (
+            row["oracle"]["joint_f1"] is not None
+            and row["independent"]["joint_f1"] is not None
+        )
     ])
     result = {
         "root": str(root),
@@ -297,4 +311,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

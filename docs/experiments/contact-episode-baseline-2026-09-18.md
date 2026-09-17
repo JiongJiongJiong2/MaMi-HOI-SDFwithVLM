@@ -41,35 +41,58 @@ analytic baseline.
 Release metrics are undefined for this first-onset cohort because GT contact
 does not release inside most eight-frame evaluation windows.
 
+## Bimanual Pair Headroom
+
+The aligned pair analysis covers 22 sequences where left and right futures
+overlap for at least two frames.
+
+| Pair policy | joint F1 | joint precision | joint recall | both stable success |
+|---|---:|---:|---:|---:|
+| independent per-hand argmax | 0.4079 | 0.3581 | 0.8295 | 0.2273 |
+| maximin balanced score | 0.3789 | 0.3782 | 0.7784 | 0.2273 |
+| pair oracle | 0.5364 | 0.5259 | 0.8523 | 0.1818 |
+
+The pair oracle is `+12.85 pp` joint F1 above the independent policy, with a
+sequence-clustered 95% interval of `[+5.42, +22.10] pp`. Maximin changes 13
+pairs but does not improve F1. This shows that joint candidate-pool headroom
+exists, but a simple balance rule is not the right joint signal.
+
 ## Decision
 
 The analytic selector improves stable contact success from `0.7051` to
 `0.8077` and raises recall from `0.7297` to `0.8718`. However, precision is
 essentially unchanged and selected actions create more early contact frames.
-The current mechanism therefore appears to buy contact coverage and episode
-length rather than removing wrong or premature contact.
-
-This supports the next E1b step: joint bimanual ranking and contact-risk
-scoring must optimize precision, onset delay, and false-contact penalties,
-not only maximum frame contact or recall.
+The current scorer buys contact coverage and episode length rather than
+removing wrong or premature contact. The pair oracle shows real bimanual
+headroom, while maximin does not capture it. The next E1c step must therefore
+introduce an interaction-specific pair signal such as inter-hand collision,
+joint contact configuration, or object-response consistency. A generic joint
+sum or balanced score is not sufficient.
 
 ## Evidence
 
 Server summary:
 
 ```text
-/root/autodl-tmp/contact_action_20260914/analytic_contact_episode_v1_20260918/summary.json
+/root/autodl-tmp/contact_action_20260914/analytic_contact_episode_v2_20260918/summary.json
 ```
 
 Server cohorts:
 
 ```text
-/root/autodl-tmp/contact_action_20260914/analytic_contact_episode_v1_20260918/{10_30,31_50,51_70}
+/root/autodl-tmp/contact_action_20260914/analytic_contact_episode_v2_20260918/{10_30,31_50,51_70}
+```
+
+Bimanual headroom analysis:
+
+```text
+/root/autodl-tmp/contact_action_20260914/analytic_contact_episode_v2_20260918/bimanual_headroom.json
 ```
 
 Implementation commit:
 
 ```text
 26d6013 fix(world-model): correct contact episode edge metrics
+f97f357 feat(world-model): persist ground-truth contact windows
+e302c1f feat(world-model): analyze bimanual pair headroom
 ```
-

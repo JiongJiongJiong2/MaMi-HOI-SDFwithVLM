@@ -594,6 +594,9 @@ def main():
                 "hand": hand_name,
                 "current_index": current_index,
                 "frame_indices": frame_indices.tolist(),
+                "ground_truth_contact": (
+                    ground_truth_window.astype(np.int8).tolist()
+                ),
                 "selected_name": candidates[selected_index][0],
                 "selected_index": selected_index,
                 "selected_f1": candidate_f1[selected_index],

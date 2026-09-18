@@ -1,0 +1,41 @@
+{
+  "case_count": 1,
+  "cases": [
+    {
+      "finite": true,
+      "generated": {
+        "left": {
+          "bone_cv_max": 0.1344297257341878,
+          "bone_cv_mean": 0.05607705699125296
+        },
+        "right": {
+          "bone_cv_max": 0.15399659953736403,
+          "bone_cv_mean": 0.0619530252389666
+        },
+        "trajectory": {
+          "acceleration_mm": 2.066600345648267,
+          "jerk_mm": 2.9573684138369503,
+          "speed_mm": 2.3855648233243643
+        }
+      },
+      "gt": {
+        "left": {
+          "bone_cv_max": 0.027853876547508916,
+          "bone_cv_mean": 0.011385776379767572
+        },
+        "right": {
+          "bone_cv_max": 0.04198445732411044,
+          "bone_cv_mean": 0.01196952200129034
+        },
+        "trajectory": {
+          "acceleration_mm": 2.855742746881995,
+          "jerk_mm": 4.508939461654561,
+          "speed_mm": 2.5441040078928
+        }
+      },
+      "sample": "val_sample_000_idx25893.pkl"
+    }
+  ],
+  "include_gt": true,
+  "input_dir": "/root/autodl-tmp/external/handx_wrist_smoke"
+}

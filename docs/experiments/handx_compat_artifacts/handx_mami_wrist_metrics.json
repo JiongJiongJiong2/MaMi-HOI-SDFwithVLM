@@ -1,0 +1,30 @@
+{
+  "case_count": 1,
+  "cases": [
+    {
+      "acceleration_ratio": 0.8697560654330498,
+      "frames": 60,
+      "generated_trajectory": {
+        "acceleration_mm": 3.2050452994101115,
+        "jerk_mm": 4.217194846613379,
+        "speed_mm": 24.337830456209566
+      },
+      "gt_trajectory": {
+        "acceleration_mm": 3.6849933294967316,
+        "jerk_mm": 4.93789299760839,
+        "speed_mm": 25.57834812502252
+      },
+      "jerk_ratio": 0.8540474345345124,
+      "sample": "val_sample_000_idxmami.pkl",
+      "speed_ratio": 0.951501259473461,
+      "wrist_max_error_mm": 40.66307625652852,
+      "wrist_mean_error_mm": 21.09621953530712,
+      "wrist_rmse_mm": 23.355043300419716
+    }
+  ],
+  "input_dir": "/root/autodl-tmp/external/handx_mami_wrist_smoke",
+  "joint_subset": "wrist",
+  "passed": false,
+  "time_ratio_pass": true,
+  "wrist_rmse_pass": false
+}

@@ -1,0 +1,26 @@
+{
+  "case_count": 1,
+  "cases": [
+    {
+      "finite": true,
+      "generated": {
+        "left": {
+          "bone_cv_max": 0.4186670593271839,
+          "bone_cv_mean": 0.1483593455717266
+        },
+        "right": {
+          "bone_cv_max": 0.5409370989588619,
+          "bone_cv_mean": 0.16814720143733952
+        },
+        "trajectory": {
+          "acceleration_mm": 1.8337746108733786,
+          "jerk_mm": 1.2491810249701276,
+          "speed_mm": 8.721152420832661
+        }
+      },
+      "sample": "val_sample_000_idxmami.pkl"
+    }
+  ],
+  "include_gt": false,
+  "input_dir": "/root/autodl-tmp/external/handx_mami_wrist_smoke2"
+}

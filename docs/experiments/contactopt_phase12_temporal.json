@@ -1,0 +1,239 @@
+{
+  "case_count": 4,
+  "case_json_dir": "phase12_cohort",
+  "cases": [
+    {
+      "acceleration_ratio": 5.634938187099395,
+      "contact_gate": {
+        "canonical_alignment": true,
+        "contact_improved": true,
+        "distance_not_regressed": true,
+        "eligibility_frame_count": true,
+        "mano_alignment": true,
+        "object_frozen": true,
+        "passed": true,
+        "valid_contact_metric": true,
+        "wrist_frozen": true
+      },
+      "contact_improved_frames": 8,
+      "eligible_frame_count": 8,
+      "frame_hand_motion_mean_mm": [
+        29.661642515363095,
+        29.50827535382784,
+        29.618260309699732,
+        28.65722770085973,
+        28.66870290752259,
+        28.862457292129807,
+        27.42598422054829,
+        28.81301426059886
+      ],
+      "frames": [
+        59,
+        60,
+        61,
+        62,
+        63,
+        64,
+        65,
+        66
+      ],
+      "input_trajectory": {
+        "acceleration_mm": 4.01459322667205,
+        "jerk_mm": 4.792959370450721,
+        "speed_mm": 23.3018004858663
+      },
+      "jerk_ratio": 7.771354966038372,
+      "object_name": "largetable",
+      "refined_trajectory": {
+        "acceleration_mm": 22.621984678644907,
+        "jerk_mm": 37.24778860557236,
+        "speed_mm": 29.656543223365333
+      },
+      "sequence": "sub16_largetable_001",
+      "speed_ratio": 1.2727146660342192,
+      "temporal_gate": {
+        "acceleration_ratio": false,
+        "jerk_ratio": false,
+        "passed": false,
+        "speed_ratio": true
+      }
+    },
+    {
+      "acceleration_ratio": 8.11703765751978,
+      "contact_gate": {
+        "canonical_alignment": true,
+        "contact_improved": true,
+        "distance_not_regressed": true,
+        "eligibility_frame_count": true,
+        "mano_alignment": true,
+        "object_frozen": true,
+        "passed": true,
+        "valid_contact_metric": true,
+        "wrist_frozen": true
+      },
+      "contact_improved_frames": 8,
+      "eligible_frame_count": 8,
+      "frame_hand_motion_mean_mm": [
+        29.07747518783998,
+        26.169649396073687,
+        22.561119859354864,
+        27.295728770565653,
+        30.398656356583775,
+        29.34699950683281,
+        23.814820784558727,
+        31.695645142001073
+      ],
+      "frames": [
+        70,
+        71,
+        72,
+        73,
+        74,
+        75,
+        76,
+        77
+      ],
+      "input_trajectory": {
+        "acceleration_mm": 2.529299782713235,
+        "jerk_mm": 2.9049569289445434,
+        "speed_mm": 19.14780464585942
+      },
+      "jerk_ratio": 11.711007648416535,
+      "object_name": "plasticbox",
+      "refined_trajectory": {
+        "acceleration_mm": 20.530421583439928,
+        "jerk_mm": 34.01997281319016,
+        "speed_mm": 23.20752618693209
+      },
+      "sequence": "sub16_plasticbox_004",
+      "speed_ratio": 1.212020208904239,
+      "temporal_gate": {
+        "acceleration_ratio": false,
+        "jerk_ratio": false,
+        "passed": false,
+        "speed_ratio": true
+      }
+    },
+    {
+      "acceleration_ratio": 5.592997865466152,
+      "contact_gate": {
+        "canonical_alignment": true,
+        "contact_improved": true,
+        "distance_not_regressed": true,
+        "eligibility_frame_count": true,
+        "mano_alignment": true,
+        "object_frozen": true,
+        "passed": true,
+        "valid_contact_metric": true,
+        "wrist_frozen": true
+      },
+      "contact_improved_frames": 8,
+      "eligible_frame_count": 8,
+      "frame_hand_motion_mean_mm": [
+        11.51403070251385,
+        14.141300096438234,
+        10.410685897588792,
+        8.660681050089782,
+        8.88201574078649,
+        7.791854286385075,
+        3.4416164365326107,
+        4.534937580913067
+      ],
+      "frames": [
+        72,
+        73,
+        74,
+        75,
+        76,
+        77,
+        78,
+        79
+      ],
+      "input_trajectory": {
+        "acceleration_mm": 2.1560542377401353,
+        "jerk_mm": 2.9588144186772487,
+        "speed_mm": 14.19470371439282
+      },
+      "jerk_ratio": 7.15545349148534,
+      "object_name": "monitor",
+      "refined_trajectory": {
+        "acceleration_mm": 12.058806749509827,
+        "jerk_mm": 21.171658962781287,
+        "speed_mm": 17.056848465313735
+      },
+      "sequence": "sub17_monitor_015",
+      "speed_ratio": 1.2016346947783647,
+      "temporal_gate": {
+        "acceleration_ratio": false,
+        "jerk_ratio": false,
+        "passed": false,
+        "speed_ratio": true
+      }
+    },
+    {
+      "acceleration_ratio": 11.535455404769626,
+      "contact_gate": {
+        "canonical_alignment": true,
+        "contact_improved": true,
+        "distance_not_regressed": true,
+        "eligibility_frame_count": true,
+        "mano_alignment": true,
+        "object_frozen": true,
+        "passed": true,
+        "valid_contact_metric": true,
+        "wrist_frozen": true
+      },
+      "contact_improved_frames": 8,
+      "eligible_frame_count": 8,
+      "frame_hand_motion_mean_mm": [
+        9.742031125229408,
+        10.459252131759245,
+        7.537429108887899,
+        7.863751252073174,
+        10.59468592199129,
+        11.410598406666784,
+        9.107345371323278,
+        12.24251156279369
+      ],
+      "frames": [
+        78,
+        79,
+        80,
+        81,
+        82,
+        83,
+        84,
+        85
+      ],
+      "input_trajectory": {
+        "acceleration_mm": 0.6911725687423507,
+        "jerk_mm": 0.6399510776321985,
+        "speed_mm": 4.83268538961749
+      },
+      "jerk_ratio": 19.917648145687984,
+      "object_name": "smallbox",
+      "refined_trajectory": {
+        "acceleration_mm": 7.972990343727456,
+        "jerk_mm": 12.746320394731985,
+        "speed_mm": 7.032773247735164
+      },
+      "sequence": "sub17_smallbox_015",
+      "speed_ratio": 1.4552516211471842,
+      "temporal_gate": {
+        "acceleration_ratio": false,
+        "jerk_ratio": false,
+        "passed": false,
+        "speed_ratio": true
+      }
+    }
+  ],
+  "contact_and_temporal_pass_count": 0,
+  "geometry_dir": "phase12_geometry",
+  "passed": false,
+  "temporal_pass_count": 0,
+  "thresholds": {
+    "max_acceleration_ratio": 2.0,
+    "max_jerk_ratio": 3.0,
+    "max_speed_ratio": 2.0
+  }
+}

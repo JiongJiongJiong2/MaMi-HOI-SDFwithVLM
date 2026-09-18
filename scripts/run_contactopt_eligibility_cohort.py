@@ -24,6 +24,10 @@ def parse_args():
     parser.add_argument("--contact-p10-threshold", type=float, default=0.02)
     parser.add_argument("--min-eligible-frames", type=int, default=3)
     parser.add_argument("--n-iter", type=int, default=250)
+    parser.add_argument("--case-tag", default="phase10")
+    parser.add_argument("--min-selected-cases", type=int, default=6)
+    parser.add_argument("--min-eligible-cases", type=int, default=4)
+    parser.add_argument("--min-contact-successes", type=int, default=3)
     return parser.parse_args()
 
 
@@ -93,7 +97,7 @@ def main():
     for index, candidate in enumerate(manifest["selected"]):
         sequence = candidate["sequence"]
         output_json = args.output_dir / f"{sequence}.json"
-        output_tag = f"phase10_{sequence}"
+        output_tag = f"{args.case_tag}_{sequence}"
         command = [
             str(args.python),
             str(args.case_script),
@@ -176,16 +180,21 @@ def write_summary(args, case_results):
         "cases": case_results,
     }
     aggregate["gate"] = {
-        "six_cases_selected": aggregate["selected_case_count"] >= 6,
-        "four_cases_eligible": aggregate["eligible_case_count"] >= 4,
+        "minimum_cases_selected": (
+            aggregate["selected_case_count"] >= args.min_selected_cases
+        ),
+        "minimum_cases_eligible": (
+            aggregate["eligible_case_count"] >= args.min_eligible_cases
+        ),
         "frozen_coordinates": (
             aggregate["max_wrist_drift_m"] is not None
             and aggregate["max_wrist_drift_m"] <= 0.00001
             and aggregate["max_object_drift_m"] is not None
             and aggregate["max_object_drift_m"] <= 0.000001
         ),
-        "three_eligible_contact_successes": (
-            aggregate["eligible_contact_success_count"] >= 3
+        "minimum_eligible_contact_successes": (
+            aggregate["eligible_contact_success_count"]
+            >= args.min_contact_successes
         ),
         "no_large_distance_regression": all(
             result.get("mean_distance_relative_change", 0.0) <= 0.10

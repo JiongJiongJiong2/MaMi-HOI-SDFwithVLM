@@ -21,6 +21,7 @@ def parse_args():
     parser.add_argument("--object", dest="objects", nargs="+", required=True)
     parser.add_argument("--output-json", type=Path, required=True)
     parser.add_argument("--min-size-mb", type=float, default=10.0)
+    parser.add_argument("--exclude-sequence", nargs="*", default=[])
     return parser.parse_args()
 
 
@@ -71,10 +72,15 @@ def main():
 
     selected = []
     missing = []
+    excluded = set(args.exclude_sequence)
     for object_name in args.objects:
         matches = sorted(
-            by_object.get(object_name, []),
-            key=lambda item: item["path"],
+            (
+                item
+                for item in by_object.get(object_name, [])
+                if item["sequence"] not in excluded
+            ),
+            key=lambda item: (item["sequence"], item["path"]),
         )
         if not matches:
             missing.append(object_name)

@@ -23,16 +23,31 @@ def parse_args():
     parser.add_argument("--max-speed-ratio", type=float, default=2.0)
     parser.add_argument("--max-acceleration-ratio", type=float, default=2.0)
     parser.add_argument("--max-jerk-ratio", type=float, default=3.0)
+    parser.add_argument(
+        "--kernel",
+        choices=("binomial3", "binomial5"),
+        default="binomial3",
+    )
     return parser.parse_args()
 
 
-def smooth_pose_sequence(pose, finger_start=3):
+def smooth_pose_sequence(pose, kernel=(1.0, 2.0, 1.0), finger_start=3):
     smoothed = np.asarray(pose, dtype=np.float32).copy()
     coefficients = smoothed[:, finger_start:]
-    padded = np.pad(coefficients, ((1, 1), (0, 0)), mode="edge")
-    smoothed[:, finger_start:] = (
-        padded[:-2] + 2.0 * padded[1:-1] + padded[2:]
-    ) / 4.0
+    radius = len(kernel) // 2
+    padded = np.pad(
+        coefficients,
+        ((radius, radius), (0, 0)),
+        mode="edge",
+    )
+    kernel = np.asarray(kernel, dtype=np.float32)
+    kernel /= kernel.sum()
+    smoothed_coefficients = np.zeros_like(coefficients)
+    for offset, weight in enumerate(kernel):
+        smoothed_coefficients += (
+            weight * padded[offset : offset + len(coefficients)]
+        )
+    smoothed[:, finger_start:] = smoothed_coefficients
     return smoothed
 
 
@@ -202,6 +217,11 @@ def main():
         "max_acceleration_ratio": args.max_acceleration_ratio,
         "max_jerk_ratio": args.max_jerk_ratio,
     }
+    kernels = {
+        "binomial3": (1.0, 2.0, 1.0),
+        "binomial5": (1.0, 4.0, 6.0, 4.0, 1.0),
+    }
+    kernel = kernels[args.kernel]
     cases = []
 
     for candidate in manifest["selected"]:
@@ -222,7 +242,7 @@ def main():
             [run["out_ho"].hand_pose for run in runs],
             dtype=np.float32,
         )
-        smoothed_pose = smooth_pose_sequence(output_pose)
+        smoothed_pose = smooth_pose_sequence(output_pose, kernel=kernel)
         input_vertices = np.asarray(
             [run["in_ho"].hand_verts for run in runs],
             dtype=np.float32,
@@ -308,10 +328,11 @@ def main():
         "optimized_pkl_dir": str(args.optimized_pkl_dir),
         "case_tag": args.case_tag,
         "method": (
-            "smooth ContactOpt pose coefficients 3:18 with [1,2,1]/4; "
+            f"smooth ContactOpt pose coefficients 3:18 with {args.kernel}; "
             "keep global pose coefficients 0:3 and hand_mTc unchanged; "
             "rerun MANO forward geometry"
         ),
+        "kernel": list(kernel),
         "thresholds": thresholds,
         "case_count": len(cases),
         "raw_temporal_pass_count": sum(

@@ -1,0 +1,148 @@
+{
+  "candidate_npz": "/root/autodl-tmp/contact_action_20260914/mami_l1_heldout_20_20260915/candidate_seed_1/res_npz_files/chois_wo_guidance/sub16_plasticbox_001.npz",
+  "contact_p10_threshold": 0.02,
+  "eligibility": [
+    {
+      "eligible": false,
+      "fraction_within_1cm": 0.0,
+      "fraction_within_2cm": 0.06815203145478375,
+      "fraction_within_3cm": 0.18872870249017037,
+      "frame": 49,
+      "mean_distance_m": 0.06150753100567843,
+      "min_distance_m": 0.010407559775316162,
+      "p05_distance_m": 0.01795124805315959,
+      "p10_distance_m": 0.022096797586724424,
+      "p25_distance_m": 0.03779866179939939
+    },
+    {
+      "eligible": false,
+      "fraction_within_1cm": 0.00655307994757536,
+      "fraction_within_2cm": 0.03407601572739188,
+      "fraction_within_3cm": 0.12844036697247707,
+      "frame": 56,
+      "mean_distance_m": 0.06733774698071582,
+      "min_distance_m": 0.003849546393573283,
+      "p05_distance_m": 0.02174410539038954,
+      "p10_distance_m": 0.027610396064853066,
+      "p25_distance_m": 0.04360034349599071
+    },
+    {
+      "eligible": false,
+      "fraction_within_1cm": 0.0,
+      "fraction_within_2cm": 0.07077326343381389,
+      "fraction_within_3cm": 0.1349934469200524,
+      "frame": 62,
+      "mean_distance_m": 0.06558604523090084,
+      "min_distance_m": 0.010203696820594832,
+      "p05_distance_m": 0.017322074619777226,
+      "p10_distance_m": 0.02397055408005566,
+      "p25_distance_m": 0.04534236350212596
+    },
+    {
+      "eligible": false,
+      "fraction_within_1cm": 0.03014416775884666,
+      "fraction_within_2cm": 0.09174311926605505,
+      "fraction_within_3cm": 0.1363040629095675,
+      "frame": 67,
+      "mean_distance_m": 0.06421214474219535,
+      "min_distance_m": 0.005201395248631588,
+      "p05_distance_m": 0.013173711646601072,
+      "p10_distance_m": 0.02254956086694669,
+      "p25_distance_m": 0.04300873862979678
+    },
+    {
+      "eligible": false,
+      "fraction_within_1cm": 0.03145478374836173,
+      "fraction_within_2cm": 0.08650065530799476,
+      "fraction_within_3cm": 0.1218872870249017,
+      "frame": 72,
+      "mean_distance_m": 0.0655035790893067,
+      "min_distance_m": 0.004383045233491575,
+      "p05_distance_m": 0.012836522872197541,
+      "p10_distance_m": 0.02403268631996424,
+      "p25_distance_m": 0.043953527070932044
+    },
+    {
+      "eligible": false,
+      "fraction_within_1cm": 0.039318479685452164,
+      "fraction_within_2cm": 0.08387942332896461,
+      "fraction_within_3cm": 0.11926605504587157,
+      "frame": 77,
+      "mean_distance_m": 0.06595938901231757,
+      "min_distance_m": 0.003109373406114505,
+      "p05_distance_m": 0.011420646359895648,
+      "p10_distance_m": 0.025990203802246738,
+      "p25_distance_m": 0.04389434795242583
+    },
+    {
+      "eligible": false,
+      "fraction_within_1cm": 0.03145478374836173,
+      "fraction_within_2cm": 0.07208387942332896,
+      "fraction_within_3cm": 0.1127129750982962,
+      "frame": 82,
+      "mean_distance_m": 0.06652101403550585,
+      "min_distance_m": 0.004711599901495897,
+      "p05_distance_m": 0.01424353498202354,
+      "p10_distance_m": 0.027829852341906297,
+      "p25_distance_m": 0.04495839356792973
+    },
+    {
+      "eligible": false,
+      "fraction_within_1cm": 0.04456094364351245,
+      "fraction_within_2cm": 0.08256880733944955,
+      "fraction_within_3cm": 0.14809960681520315,
+      "frame": 89,
+      "mean_distance_m": 0.061352953367760976,
+      "min_distance_m": 0.00140972761384253,
+      "p05_distance_m": 0.011198776968658059,
+      "p10_distance_m": 0.025218046446518413,
+      "p25_distance_m": 0.04025363880164156
+    },
+    {
+      "eligible": false,
+      "fraction_within_1cm": 0.0327653997378768,
+      "fraction_within_2cm": 0.07601572739187418,
+      "fraction_within_3cm": 0.14416775884665792,
+      "frame": 94,
+      "mean_distance_m": 0.060015778421668206,
+      "min_distance_m": 0.003169650861109646,
+      "p05_distance_m": 0.013608453115651847,
+      "p10_distance_m": 0.026316616944504375,
+      "p25_distance_m": 0.03980729326062181
+    },
+    {
+      "eligible": true,
+      "fraction_within_1cm": 0.11533420707732635,
+      "fraction_within_2cm": 0.22411533420707733,
+      "fraction_within_3cm": 0.30668414154652685,
+      "frame": 111,
+      "mean_distance_m": 0.054733454021372016,
+      "min_distance_m": 0.0013823961721161377,
+      "p05_distance_m": 0.004803884604428002,
+      "p10_distance_m": 0.008765958511443466,
+      "p25_distance_m": 0.02308242521602787
+    }
+  ],
+  "eligible_frames": [
+    111
+  ],
+  "gate": {
+    "eligibility_frame_count": false,
+    "passed": false
+  },
+  "min_eligible_frames": 3,
+  "object_name": "plasticbox",
+  "selected_frames": [
+    49,
+    56,
+    62,
+    67,
+    72,
+    77,
+    82,
+    89,
+    94,
+    111
+  ],
+  "sequence": "sub16_plasticbox_001"
+}

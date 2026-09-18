@@ -55,6 +55,12 @@ def parse_args():
     parser.add_argument("--min-frame-separation", type=int, default=5)
     parser.add_argument("--frames", type=int, nargs="*")
     parser.add_argument("--n-iter", type=int, default=250)
+    parser.add_argument(
+        "--contact-p10-threshold",
+        type=float,
+        default=0.02,
+    )
+    parser.add_argument("--min-eligible-frames", type=int, default=3)
     parser.add_argument("--output-tag", default="mami_phase7")
     parser.add_argument("--output-json", type=Path, required=True)
     return parser.parse_args()
@@ -84,6 +90,20 @@ def procrustes(source, target):
 
 def transform_points(points, rotation, translation):
     return points @ rotation.T + translation
+
+
+def contact_features(hand_vertices, object_vertices):
+    distances = cKDTree(object_vertices).query(hand_vertices)[0]
+    return {
+        "min_distance_m": float(distances.min()),
+        "mean_distance_m": float(distances.mean()),
+        "p05_distance_m": float(np.percentile(distances, 5)),
+        "p10_distance_m": float(np.percentile(distances, 10)),
+        "p25_distance_m": float(np.percentile(distances, 25)),
+        "fraction_within_1cm": float(np.mean(distances <= 0.01)),
+        "fraction_within_2cm": float(np.mean(distances <= 0.02)),
+        "fraction_within_3cm": float(np.mean(distances <= 0.03)),
+    }
 
 
 def make_body_model(body_model_module_root, body_model_root, gender):
@@ -249,7 +269,7 @@ def build_samples(args, candidate, sequence_record, right_hand_vids):
         body_model, betas, right_hand_vids
     )
 
-    frames = select_frames(
+    selected_frames = select_frames(
         candidate,
         args.frames,
         args.num_frames,
@@ -263,12 +283,30 @@ def build_samples(args, candidate, sequence_record, right_hand_vids):
     )
     object_faces = np.asarray(candidate["object_faces"], dtype=np.int64)
 
+    eligibility = []
+    eligible_frames = []
+    for frame in selected_frames:
+        features = contact_features(
+            saved_right_hand[frame], object_vertices[frame]
+        )
+        eligible = (
+            features["p10_distance_m"] <= args.contact_p10_threshold
+        )
+        eligibility.append(
+            {"frame": frame, "eligible": eligible, **features}
+        )
+        if eligible:
+            eligible_frames.append(frame)
+
+    if len(eligible_frames) < args.min_eligible_frames:
+        return [], selected_frames, eligible_frames, [], eligibility
+
     from contactopt import util
     from contactopt.hand_object import HandObject
 
     samples = []
     alignment = []
-    for frame in frames:
+    for frame in eligible_frames:
         transform, diagnostics = align_mano_to_saved_hand(
             contactopt_root,
             canonical_hand,
@@ -312,7 +350,7 @@ def build_samples(args, candidate, sequence_record, right_hand_vids):
         )
         alignment.append({"frame": frame, **diagnostics})
 
-    return samples, frames, alignment
+    return samples, selected_frames, eligible_frames, alignment, eligibility
 
 
 def make_contactopt_args(samples, output_tag, n_iter):
@@ -485,9 +523,38 @@ def main():
     sequence_name = str(candidate["seq_name"])
     sequence_record = load_sequence_record(sequence_db, sequence_name)
 
-    samples, frames, alignment = build_samples(
+    (
+        samples,
+        selected_frames,
+        eligible_frames,
+        alignment,
+        eligibility,
+    ) = build_samples(
         args, candidate, sequence_record, right_hand_vids
     )
+
+    if not samples:
+        summary = {
+            "candidate_npz": str(candidate_path),
+            "sequence": sequence_name,
+            "object_name": str(candidate["object_name"]),
+            "selected_frames": selected_frames,
+            "eligible_frames": eligible_frames,
+            "eligibility": eligibility,
+            "contact_p10_threshold": args.contact_p10_threshold,
+            "min_eligible_frames": args.min_eligible_frames,
+            "gate": {
+                "eligibility_frame_count": False,
+                "passed": False,
+            },
+        }
+        output_json.parent.mkdir(parents=True, exist_ok=True)
+        output_json.write_text(
+            json.dumps(summary, indent=2, sort_keys=True),
+            encoding="utf-8",
+        )
+        print(json.dumps(summary, indent=2, sort_keys=True))
+        return
 
     sys.path.insert(0, str(contactopt_root))
     os.chdir(contactopt_root)
@@ -503,12 +570,21 @@ def main():
     )
     rows = evaluate_runs(optimized_path)
     summary = aggregate_rows(rows, alignment)
+    required_improved_frames = max(
+        3, int(np.ceil(0.7 * len(eligible_frames)))
+    )
     summary.update(
         {
             "candidate_npz": str(candidate_path),
             "sequence": sequence_name,
             "object_name": str(candidate["object_name"]),
-            "frames": frames,
+            "selected_frames": selected_frames,
+            "eligible_frames": eligible_frames,
+            "frames": eligible_frames,
+            "eligibility": eligibility,
+            "contact_p10_threshold": args.contact_p10_threshold,
+            "min_eligible_frames": args.min_eligible_frames,
+            "required_improved_frames": required_improved_frames,
             "optimized_pkl": str(optimized_path),
             "rows": rows,
             "alignment": alignment,
@@ -519,8 +595,12 @@ def main():
         "mano_alignment": summary["alignment_mano_mean_m"] <= 0.015,
         "wrist_frozen": summary["max_wrist_drift_m"] <= 0.00001,
         "object_frozen": summary["max_object_drift_m"] <= 0.000001,
-        "valid_contact_metric": summary["valid_contact_frames"] >= 7,
-        "contact_improved": summary["contact_improved_frames"] >= 7,
+        "eligibility_frame_count": len(eligible_frames)
+        >= args.min_eligible_frames,
+        "valid_contact_metric": summary["valid_contact_frames"]
+        >= required_improved_frames,
+        "contact_improved": summary["contact_improved_frames"]
+        >= required_improved_frames,
         "distance_not_regressed": summary[
             "mean_distance_relative_change"
         ]

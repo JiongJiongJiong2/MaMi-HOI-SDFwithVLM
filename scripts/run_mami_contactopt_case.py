@@ -371,6 +371,21 @@ def evaluate_runs(optimized_path):
         object_drift = np.linalg.norm(
             refined_hand.obj_verts - input_hand.obj_verts, axis=1
         ).max()
+        input_hand_contact = input_hand.hand_contact.mean()
+        refined_hand_contact = refined_hand.hand_contact.mean()
+        input_object_contact = input_hand.obj_contact.mean()
+        refined_object_contact = refined_hand.obj_contact.mean()
+
+        if (
+            not np.isfinite(input_hand_contact)
+            or not np.isfinite(refined_hand_contact)
+            or input_hand_contact <= 0
+        ):
+            hand_contact_change = None
+        else:
+            hand_contact_change = float(
+                refined_hand_contact / input_hand_contact - 1.0
+            )
 
         rows.append(
             {
@@ -381,22 +396,26 @@ def evaluate_runs(optimized_path):
                     refined_dist.mean() / input_dist.mean() - 1.0
                 ),
                 "input_hand_contact_mean": float(
-                    input_hand.hand_contact.mean()
-                ),
+                    input_hand_contact
+                )
+                if np.isfinite(input_hand_contact)
+                else None,
                 "refined_hand_contact_mean": float(
-                    refined_hand.hand_contact.mean()
-                ),
-                "hand_contact_relative_change": float(
-                    refined_hand.hand_contact.mean()
-                    / input_hand.hand_contact.mean()
-                    - 1.0
-                ),
+                    refined_hand_contact
+                )
+                if np.isfinite(refined_hand_contact)
+                else None,
+                "hand_contact_relative_change": hand_contact_change,
                 "input_object_contact_mean": float(
-                    input_hand.obj_contact.mean()
-                ),
+                    input_object_contact
+                )
+                if np.isfinite(input_object_contact)
+                else None,
                 "refined_object_contact_mean": float(
-                    refined_hand.obj_contact.mean()
-                ),
+                    refined_object_contact
+                )
+                if np.isfinite(refined_object_contact)
+                else None,
                 "wrist_root_drift_m": float(wrist_drift),
                 "object_vertex_drift_m": float(object_drift),
                 "hand_vertex_motion_mean_m": float(
@@ -413,7 +432,9 @@ def evaluate_runs(optimized_path):
 
 def aggregate_rows(rows, alignment):
     contact_improvements = [
-        row["hand_contact_relative_change"] for row in rows
+        row["hand_contact_relative_change"]
+        for row in rows
+        if row["hand_contact_relative_change"] is not None
     ]
     distance_changes = [row["distance_relative_change"] for row in rows]
     distance_improvements = [
@@ -430,10 +451,13 @@ def aggregate_rows(rows, alignment):
         "contact_improved_frames": int(
             sum(change > 0 for change in contact_improvements)
         ),
+        "valid_contact_frames": len(contact_improvements),
         "distance_improved_frames": int(sum(distance_improvements)),
         "mean_hand_contact_relative_change": float(
             np.mean(contact_improvements)
-        ),
+        )
+        if contact_improvements
+        else None,
         "mean_distance_relative_change": float(
             np.mean(distance_changes)
         ),
@@ -495,6 +519,7 @@ def main():
         "mano_alignment": summary["alignment_mano_mean_m"] <= 0.015,
         "wrist_frozen": summary["max_wrist_drift_m"] <= 0.00001,
         "object_frozen": summary["max_object_drift_m"] <= 0.000001,
+        "valid_contact_metric": summary["valid_contact_frames"] >= 7,
         "contact_improved": summary["contact_improved_frames"] >= 7,
         "distance_not_regressed": summary[
             "mean_distance_relative_change"

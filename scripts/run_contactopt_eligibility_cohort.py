@@ -17,6 +17,8 @@ def parse_args():
     parser.add_argument("--sequence-db", type=Path, required=True)
     parser.add_argument("--workdir", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--case-dir", type=Path)
+    parser.add_argument("--summary-only", action="store_true")
     parser.add_argument("--num-frames", type=int, default=10)
     parser.add_argument("--min-frame-separation", type=int, default=5)
     parser.add_argument("--contact-p10-threshold", type=float, default=0.02)
@@ -72,6 +74,15 @@ def main():
         args.manifest_json.read_text(encoding="utf-8")
     )
     args.output_dir.mkdir(parents=True, exist_ok=True)
+    case_dir = args.case_dir or args.output_dir
+
+    if args.summary_only:
+        case_results = [
+            summarize_case(case_dir / f"{candidate['sequence']}.json")
+            for candidate in manifest["selected"]
+        ]
+        write_summary(args, case_results)
+        return
 
     env = os.environ.copy()
     env["OMP_NUM_THREADS"] = "8"
@@ -117,6 +128,11 @@ def main():
             check=True,
         )
         case_results.append(summarize_case(output_json))
+
+    write_summary(args, case_results)
+
+
+def write_summary(args, case_results):
 
     invoked = [result for result in case_results if result["invoked"]]
     eligible = [

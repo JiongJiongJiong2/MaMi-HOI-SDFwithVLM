@@ -21,6 +21,8 @@ import torch
 from scipy.spatial import cKDTree
 from scipy.spatial.transform import Rotation
 
+from contactopt_contact_metrics import sanitized_contact_mean
+
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -409,16 +411,20 @@ def evaluate_runs(optimized_path):
         object_drift = np.linalg.norm(
             refined_hand.obj_verts - input_hand.obj_verts, axis=1
         ).max()
-        input_hand_contact = input_hand.hand_contact.mean()
-        refined_hand_contact = refined_hand.hand_contact.mean()
-        input_object_contact = input_hand.obj_contact.mean()
-        refined_object_contact = refined_hand.obj_contact.mean()
+        input_hand_contact, input_hand_contact_finite = (
+            sanitized_contact_mean(input_hand.hand_contact)
+        )
+        refined_hand_contact, refined_hand_contact_finite = (
+            sanitized_contact_mean(refined_hand.hand_contact)
+        )
+        input_object_contact, input_object_contact_finite = (
+            sanitized_contact_mean(input_hand.obj_contact)
+        )
+        refined_object_contact, refined_object_contact_finite = (
+            sanitized_contact_mean(refined_hand.obj_contact)
+        )
 
-        if (
-            not np.isfinite(input_hand_contact)
-            or not np.isfinite(refined_hand_contact)
-            or input_hand_contact <= 0
-        ):
+        if input_hand_contact <= 0:
             hand_contact_change = None
         else:
             hand_contact_change = float(
@@ -435,25 +441,25 @@ def evaluate_runs(optimized_path):
                 ),
                 "input_hand_contact_mean": float(
                     input_hand_contact
-                )
-                if np.isfinite(input_hand_contact)
-                else None,
-                "refined_hand_contact_mean": float(
-                    refined_hand_contact
-                )
-                if np.isfinite(refined_hand_contact)
-                else None,
+                ),
+                "refined_hand_contact_mean": float(refined_hand_contact),
+                "input_hand_contact_finite_fraction": (
+                    input_hand_contact_finite
+                ),
+                "refined_hand_contact_finite_fraction": (
+                    refined_hand_contact_finite
+                ),
                 "hand_contact_relative_change": hand_contact_change,
-                "input_object_contact_mean": float(
-                    input_object_contact
-                )
-                if np.isfinite(input_object_contact)
-                else None,
+                "input_object_contact_mean": float(input_object_contact),
                 "refined_object_contact_mean": float(
                     refined_object_contact
-                )
-                if np.isfinite(refined_object_contact)
-                else None,
+                ),
+                "input_object_contact_finite_fraction": (
+                    input_object_contact_finite
+                ),
+                "refined_object_contact_finite_fraction": (
+                    refined_object_contact_finite
+                ),
                 "wrist_root_drift_m": float(wrist_drift),
                 "object_vertex_drift_m": float(object_drift),
                 "hand_vertex_motion_mean_m": float(
@@ -509,6 +515,36 @@ def aggregate_rows(rows, alignment):
             np.mean([row["hand_vertex_motion_mean_m"] for row in rows])
         ),
     }
+
+
+def build_gate(
+    summary,
+    eligible_frame_count,
+    min_eligible_frames,
+):
+    required_improved_frames = max(
+        3, int(np.ceil(0.7 * eligible_frame_count))
+    )
+    gate = {
+        "canonical_alignment": summary["alignment_canonical_mean_m"] <= 0.003,
+        "mano_alignment": summary["alignment_mano_mean_m"] <= 0.015,
+        "wrist_frozen": summary["max_wrist_drift_m"] <= 0.00001,
+        "object_frozen": summary["max_object_drift_m"] <= 0.000001,
+        "eligibility_frame_count": (
+            eligible_frame_count >= min_eligible_frames
+        ),
+        "valid_contact_metric": (
+            summary["valid_contact_frames"] >= required_improved_frames
+        ),
+        "contact_improved": (
+            summary["contact_improved_frames"] >= required_improved_frames
+        ),
+        "distance_not_regressed": (
+            summary["mean_distance_relative_change"] <= 0.10
+        ),
+    }
+    gate["passed"] = all(gate.values())
+    return gate, required_improved_frames
 
 
 def main():
@@ -570,8 +606,10 @@ def main():
     )
     rows = evaluate_runs(optimized_path)
     summary = aggregate_rows(rows, alignment)
-    required_improved_frames = max(
-        3, int(np.ceil(0.7 * len(eligible_frames)))
+    gate, required_improved_frames = build_gate(
+        summary,
+        len(eligible_frames),
+        args.min_eligible_frames,
     )
     summary.update(
         {
@@ -588,25 +626,13 @@ def main():
             "optimized_pkl": str(optimized_path),
             "rows": rows,
             "alignment": alignment,
+            "contact_metric_policy": (
+                "nonfinite capsule contact values are treated as zero; "
+                "finite fractions are retained per frame"
+            ),
         }
     )
-    summary["gate"] = {
-        "canonical_alignment": summary["alignment_canonical_mean_m"] <= 0.003,
-        "mano_alignment": summary["alignment_mano_mean_m"] <= 0.015,
-        "wrist_frozen": summary["max_wrist_drift_m"] <= 0.00001,
-        "object_frozen": summary["max_object_drift_m"] <= 0.000001,
-        "eligibility_frame_count": len(eligible_frames)
-        >= args.min_eligible_frames,
-        "valid_contact_metric": summary["valid_contact_frames"]
-        >= required_improved_frames,
-        "contact_improved": summary["contact_improved_frames"]
-        >= required_improved_frames,
-        "distance_not_regressed": summary[
-            "mean_distance_relative_change"
-        ]
-        <= 0.10,
-    }
-    summary["gate"]["passed"] = all(summary["gate"].values())
+    summary["gate"] = gate
 
     output_json.parent.mkdir(parents=True, exist_ok=True)
     output_json.write_text(

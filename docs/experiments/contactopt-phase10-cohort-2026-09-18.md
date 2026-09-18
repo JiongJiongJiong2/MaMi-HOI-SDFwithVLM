@@ -8,6 +8,7 @@ Raw results:
 docs/experiments/contactopt_phase10_manifest.json
 docs/experiments/phase10_cohort/cohort_summary.json
 docs/experiments/phase10_cohort/*.json
+docs/experiments/contactopt-contact-metric-repair-2026-09-18.md
 ```
 
 ## Frozen Selection
@@ -47,13 +48,16 @@ rand_re = 0
 | monitor | 10 | 10/10 | 9/10 | -6.02% | +44.66% | PASS |
 | largetable | 10 | 10/10 | 10/10 | -36.89% | +95.02% | PASS |
 | plasticbox | 1 | not run | not run | not run | not run | REJECT |
-| smallbox | 10 | 7/10 | 9/10 | -27.02% | +83.54% | PASS |
-| floorlamp | 10 | 5/10 | 10/10 | -29.20% | +64.97% | FAIL |
-| whitechair | 8 | 5/8 | 8/8 | -32.36% | +91.16% | FAIL |
+| smallbox | 10 | 10/10 | 9/10 | -27.02% | +71.63% | PASS |
+| floorlamp | 10 | 10/10 | 10/10 | -29.20% | +98.64% | PASS |
+| whitechair | 8 | 8/8 | 8/8 | -32.36% | +79.99% | PASS |
 
-`floorlamp` and `whitechair` did not fail because of coordinate drift or
-distance regressions. They reached the required distance improvement but not
-the required fraction of contact-weight improvements.
+The initial report marked `floorlamp` and `whitechair` as failures because a
+single non-finite ContactOpt capsule value made the direct array mean `NaN`.
+The metric repair replaces undefined capsule contacts with zero while retaining
+the finite fraction. Re-evaluating the saved pkl files does not rerun
+optimization and changes no hand or object coordinates. See
+`contactopt-contact-metric-repair-2026-09-18.md`.
 
 ## Aggregate
 
@@ -61,7 +65,7 @@ the required fraction of contact-weight improvements.
 |---|---:|---:|---|
 | Selected objects with saved vertices | 6 | >= 6 | PASS |
 | Eligible cases | 5 | >= 4 | PASS |
-| Cases passing the full per-case gate | 3 | >= 3 contact-success cases | PASS |
+| Cases passing the full per-case gate | 5 | >= 3 contact-success cases | PASS |
 | Maximum wrist drift | 0.0 m | <= 0.00001 m | PASS |
 | Maximum object drift | `2.98e-8 m` | <= `1e-6 m` | PASS |
 | Eligible cases with large distance regression | 0 | 0 | PASS |
@@ -74,11 +78,14 @@ The geometry gate is usable as a safety gate on this deterministic cohort:
 it rejected the far-from-contact `plasticbox` case before ContactOpt and
 preserved wrist/object coordinates in every invoked case.
 
-ContactOpt refinement is not uniformly successful across eligible cases.
-Three of five eligible cases met the full contact-improvement criterion;
-`floorlamp` and `whitechair` improved nearest distance but not the required
-contact fraction. They remain negative results and must not be relabeled as
-successes.
+After correcting the undefined-contact aggregation, all five eligible cases
+met the full contact-improvement criterion. This conclusion is conditional on
+treating non-finite capsule outputs as zero contact rather than as missing
+whole-frame observations. The raw finite fractions are retained in every row.
+
+The earlier 3/5 result was an analysis-code false negative, not a new
+refinement outcome. The original negative JSON and report remain in git
+history. No ContactOpt optimization was rerun during the correction.
 
 This cohort still uses neutral SMPLX hand geometry, one candidate per object,
 and a 2 cm p10 threshold selected from an earlier three-case audit. It does

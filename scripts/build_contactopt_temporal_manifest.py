@@ -17,6 +17,7 @@ def parse_args():
     parser.add_argument("--min-run", type=int, default=5)
     parser.add_argument("--max-window", type=int, default=8)
     parser.add_argument("--max-cases", type=int, default=4)
+    parser.add_argument("--exclude-sequence", nargs="*", default=[])
     return parser.parse_args()
 
 
@@ -61,8 +62,11 @@ def main():
     )
     selected = []
     rejected = []
+    excluded = set(args.exclude_sequence)
 
     for candidate in source["selected"]:
+        if candidate["sequence"] in excluded:
+            continue
         p10 = frame_eligibility(Path(candidate["path"]), args.threshold_m)
         runs = contiguous_runs(p10 <= args.threshold_m)
         if not runs:

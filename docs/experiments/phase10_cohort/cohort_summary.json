@@ -1,0 +1,163 @@
+{
+  "cases": [
+    {
+      "contact_improved_frames": 10,
+      "distance_improved_frames": 9,
+      "eligible_frame_count": 10,
+      "gate": {
+        "canonical_alignment": true,
+        "contact_improved": true,
+        "distance_not_regressed": true,
+        "eligibility_frame_count": true,
+        "mano_alignment": true,
+        "object_frozen": true,
+        "passed": true,
+        "valid_contact_metric": true,
+        "wrist_frozen": true
+      },
+      "gate_passed": true,
+      "invoked": true,
+      "max_object_drift_m": 0.0,
+      "max_wrist_drift_m": 0.0,
+      "mean_distance_relative_change": -0.060219962795225124,
+      "mean_hand_contact_relative_change": 0.4466360569000244,
+      "object_name": "monitor",
+      "path": "/root/autodl-tmp/external/ContactOpt/phase10_cohort/sub17_monitor_007.json",
+      "selected_frame_count": 10,
+      "sequence": "sub17_monitor_007"
+    },
+    {
+      "contact_improved_frames": 10,
+      "distance_improved_frames": 10,
+      "eligible_frame_count": 10,
+      "gate": {
+        "canonical_alignment": true,
+        "contact_improved": true,
+        "distance_not_regressed": true,
+        "eligibility_frame_count": true,
+        "mano_alignment": true,
+        "object_frozen": true,
+        "passed": true,
+        "valid_contact_metric": true,
+        "wrist_frozen": true
+      },
+      "gate_passed": true,
+      "invoked": true,
+      "max_object_drift_m": 2.9802322387695312e-08,
+      "max_wrist_drift_m": 0.0,
+      "mean_distance_relative_change": -0.3688500537202371,
+      "mean_hand_contact_relative_change": 0.9501855969429016,
+      "object_name": "largetable",
+      "path": "/root/autodl-tmp/external/ContactOpt/phase10_cohort/sub16_largetable_000.json",
+      "selected_frame_count": 10,
+      "sequence": "sub16_largetable_000"
+    },
+    {
+      "eligible_frame_count": 1,
+      "gate": {
+        "eligibility_frame_count": false,
+        "passed": false
+      },
+      "gate_passed": false,
+      "invoked": false,
+      "object_name": "plasticbox",
+      "path": "/root/autodl-tmp/external/ContactOpt/phase10_cohort/sub16_plasticbox_001.json",
+      "selected_frame_count": 10,
+      "sequence": "sub16_plasticbox_001"
+    },
+    {
+      "contact_improved_frames": 7,
+      "distance_improved_frames": 9,
+      "eligible_frame_count": 10,
+      "gate": {
+        "canonical_alignment": true,
+        "contact_improved": true,
+        "distance_not_regressed": true,
+        "eligibility_frame_count": true,
+        "mano_alignment": true,
+        "object_frozen": true,
+        "passed": true,
+        "valid_contact_metric": true,
+        "wrist_frozen": true
+      },
+      "gate_passed": true,
+      "invoked": true,
+      "max_object_drift_m": 1.4901161193847656e-08,
+      "max_wrist_drift_m": 0.0,
+      "mean_distance_relative_change": -0.27019683116443055,
+      "mean_hand_contact_relative_change": 0.8353972434997559,
+      "object_name": "smallbox",
+      "path": "/root/autodl-tmp/external/ContactOpt/phase10_cohort/sub17_smallbox_005.json",
+      "selected_frame_count": 10,
+      "sequence": "sub17_smallbox_005"
+    },
+    {
+      "contact_improved_frames": 5,
+      "distance_improved_frames": 10,
+      "eligible_frame_count": 10,
+      "gate": {
+        "canonical_alignment": true,
+        "contact_improved": false,
+        "distance_not_regressed": true,
+        "eligibility_frame_count": true,
+        "mano_alignment": true,
+        "object_frozen": true,
+        "passed": false,
+        "valid_contact_metric": false,
+        "wrist_frozen": true
+      },
+      "gate_passed": false,
+      "invoked": true,
+      "max_object_drift_m": 1.4901161193847656e-08,
+      "max_wrist_drift_m": 0.0,
+      "mean_distance_relative_change": -0.2919801538666015,
+      "mean_hand_contact_relative_change": 0.6497161626815796,
+      "object_name": "floorlamp",
+      "path": "/root/autodl-tmp/external/ContactOpt/phase10_cohort/sub17_floorlamp_004.json",
+      "selected_frame_count": 10,
+      "sequence": "sub17_floorlamp_004"
+    },
+    {
+      "contact_improved_frames": 5,
+      "distance_improved_frames": 8,
+      "eligible_frame_count": 8,
+      "gate": {
+        "canonical_alignment": true,
+        "contact_improved": false,
+        "distance_not_regressed": true,
+        "eligibility_frame_count": true,
+        "mano_alignment": true,
+        "object_frozen": true,
+        "passed": false,
+        "valid_contact_metric": false,
+        "wrist_frozen": true
+      },
+      "gate_passed": false,
+      "invoked": true,
+      "max_object_drift_m": 2.9802322387695312e-08,
+      "max_wrist_drift_m": 0.0,
+      "mean_distance_relative_change": -0.323587557013747,
+      "mean_hand_contact_relative_change": 0.9116113901138305,
+      "object_name": "whitechair",
+      "path": "/root/autodl-tmp/external/ContactOpt/phase10_cohort/sub16_whitechair_012.json",
+      "selected_frame_count": 10,
+      "sequence": "sub16_whitechair_012"
+    }
+  ],
+  "eligible_case_count": 5,
+  "eligible_contact_success_count": 3,
+  "gate": {
+    "four_cases_eligible": true,
+    "frozen_coordinates": true,
+    "no_large_distance_regression": true,
+    "passed": true,
+    "six_cases_selected": true,
+    "three_eligible_contact_successes": true
+  },
+  "invoked_case_count": 5,
+  "manifest_json": "contactopt_cohort_manifest.json",
+  "max_object_drift_m": 2.9802322387695312e-08,
+  "max_wrist_drift_m": 0.0,
+  "passed_case_count": 3,
+  "selected_case_count": 6
+}

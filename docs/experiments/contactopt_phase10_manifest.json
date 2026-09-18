@@ -1,0 +1,68 @@
+{
+  "available_objects": [
+    "floorlamp",
+    "largebox",
+    "largetable",
+    "monitor",
+    "plasticbox",
+    "smallbox",
+    "whitechair"
+  ],
+  "missing_objects": [
+    "clothesstand",
+    "trashcan",
+    "woodchair",
+    "suitcase"
+  ],
+  "objects_requested": [
+    "monitor",
+    "largetable",
+    "plasticbox",
+    "smallbox",
+    "floorlamp",
+    "clothesstand",
+    "whitechair",
+    "trashcan",
+    "woodchair",
+    "suitcase"
+  ],
+  "saved_vertex_candidate_count": 40,
+  "selected": [
+    {
+      "object_name": "monitor",
+      "path": "/root/autodl-tmp/contact_action_20260914/mami_l1_heldout_51_70_20260915/candidate_seed_1/res_npz_files/chois_wo_guidance/sub17_monitor_007.npz",
+      "sequence": "sub17_monitor_007",
+      "size_bytes": 57084034
+    },
+    {
+      "object_name": "largetable",
+      "path": "/root/autodl-tmp/contact_action_20260914/mami_l1_heldout_20_20260915/candidate_seed_1/res_npz_files/chois_wo_guidance/sub16_largetable_000.npz",
+      "sequence": "sub16_largetable_000",
+      "size_bytes": 25825306
+    },
+    {
+      "object_name": "plasticbox",
+      "path": "/root/autodl-tmp/contact_action_20260914/mami_l1_heldout_20_20260915/candidate_seed_1/res_npz_files/chois_wo_guidance/sub16_plasticbox_001.npz",
+      "sequence": "sub16_plasticbox_001",
+      "size_bytes": 31126018
+    },
+    {
+      "object_name": "smallbox",
+      "path": "/root/autodl-tmp/contact_action_20260914/mami_l1_heldout_51_70_20260915/candidate_seed_1/res_npz_files/chois_wo_guidance/sub17_smallbox_005.npz",
+      "sequence": "sub17_smallbox_005",
+      "size_bytes": 54762642
+    },
+    {
+      "object_name": "floorlamp",
+      "path": "/root/autodl-tmp/contact_action_20260914/mami_l1_heldout_51_70_20260915/candidate_seed_1/res_npz_files/chois_wo_guidance/sub17_floorlamp_004.npz",
+      "sequence": "sub17_floorlamp_004",
+      "size_bytes": 28836890
+    },
+    {
+      "object_name": "whitechair",
+      "path": "/root/autodl-tmp/contact_action_20260914/mami_l1_heldout_51_70_20260915/candidate_seed_1/res_npz_files/chois_wo_guidance/sub16_whitechair_012.npz",
+      "sequence": "sub16_whitechair_012",
+      "size_bytes": 26479282
+    }
+  ]
+}

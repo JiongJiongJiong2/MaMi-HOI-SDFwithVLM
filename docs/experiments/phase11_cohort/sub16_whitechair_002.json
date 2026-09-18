@@ -1,0 +1,148 @@
+{
+  "candidate_npz": "/root/autodl-tmp/contact_action_20260914/mami_l1_heldout_31_50_20260915/candidate_seed_1/res_npz_files/chois_wo_guidance/sub16_whitechair_002.npz",
+  "contact_p10_threshold": 0.02,
+  "eligibility": [
+    {
+      "eligible": true,
+      "fraction_within_1cm": 0.4036697247706422,
+      "fraction_within_2cm": 0.6133682830930537,
+      "fraction_within_3cm": 0.727391874180865,
+      "frame": 15,
+      "mean_distance_m": 0.021106860900737753,
+      "min_distance_m": 0.0008073013320480138,
+      "p05_distance_m": 0.0024381613948966973,
+      "p10_distance_m": 0.0033902413962264197,
+      "p25_distance_m": 0.005520621811042303
+    },
+    {
+      "eligible": false,
+      "fraction_within_1cm": 0.0,
+      "fraction_within_2cm": 0.06290956749672345,
+      "fraction_within_3cm": 0.18872870249017037,
+      "frame": 20,
+      "mean_distance_m": 0.054513362322367045,
+      "min_distance_m": 0.01123057362446148,
+      "p05_distance_m": 0.01821399790409289,
+      "p10_distance_m": 0.023178776397948603,
+      "p25_distance_m": 0.03371643507585978
+    },
+    {
+      "eligible": false,
+      "fraction_within_1cm": 0.0,
+      "fraction_within_2cm": 0.0,
+      "fraction_within_3cm": 0.0,
+      "frame": 25,
+      "mean_distance_m": 0.08368905717172927,
+      "min_distance_m": 0.04696999879959786,
+      "p05_distance_m": 0.057274228065693655,
+      "p10_distance_m": 0.06196163236557606,
+      "p25_distance_m": 0.06937416154970971
+    },
+    {
+      "eligible": false,
+      "fraction_within_1cm": 0.0,
+      "fraction_within_2cm": 0.0,
+      "fraction_within_3cm": 0.0,
+      "frame": 31,
+      "mean_distance_m": 0.08065910490413197,
+      "min_distance_m": 0.03800904419771825,
+      "p05_distance_m": 0.04839872457359151,
+      "p10_distance_m": 0.05268150147960534,
+      "p25_distance_m": 0.06086624002767077
+    },
+    {
+      "eligible": false,
+      "fraction_within_1cm": 0.0,
+      "fraction_within_2cm": 0.0,
+      "fraction_within_3cm": 0.019659239842726082,
+      "frame": 37,
+      "mean_distance_m": 0.06239151344769758,
+      "min_distance_m": 0.021892677890007015,
+      "p05_distance_m": 0.033247532343721735,
+      "p10_distance_m": 0.03701153890809433,
+      "p25_distance_m": 0.044121471430743006
+    },
+    {
+      "eligible": false,
+      "fraction_within_1cm": 0.0,
+      "fraction_within_2cm": 0.0,
+      "fraction_within_3cm": 0.05897771952817824,
+      "frame": 42,
+      "mean_distance_m": 0.058920608829086216,
+      "min_distance_m": 0.02054334105424372,
+      "p05_distance_m": 0.02917911415946732,
+      "p10_distance_m": 0.03380196547884969,
+      "p25_distance_m": 0.042287463275292064
+    },
+    {
+      "eligible": false,
+      "fraction_within_1cm": 0.0,
+      "fraction_within_2cm": 0.03800786369593709,
+      "fraction_within_3cm": 0.10747051114023591,
+      "frame": 47,
+      "mean_distance_m": 0.06210294142672541,
+      "min_distance_m": 0.011268552288068352,
+      "p05_distance_m": 0.02179919887941641,
+      "p10_distance_m": 0.029145485713567332,
+      "p25_distance_m": 0.041975862081513035
+    },
+    {
+      "eligible": false,
+      "fraction_within_1cm": 0.0,
+      "fraction_within_2cm": 0.0,
+      "fraction_within_3cm": 0.0,
+      "frame": 52,
+      "mean_distance_m": 0.08545544901755739,
+      "min_distance_m": 0.039861592646462884,
+      "p05_distance_m": 0.04875724811598994,
+      "p10_distance_m": 0.05435378627661307,
+      "p25_distance_m": 0.06697079072632339
+    },
+    {
+      "eligible": false,
+      "fraction_within_1cm": 0.014416775884665793,
+      "fraction_within_2cm": 0.03407601572739188,
+      "fraction_within_3cm": 0.06028833551769332,
+      "frame": 114,
+      "mean_distance_m": 0.07294227342463319,
+      "min_distance_m": 0.0026212542727168512,
+      "p05_distance_m": 0.02689910655994335,
+      "p10_distance_m": 0.03738698512087001,
+      "p25_distance_m": 0.051618784209969834
+    },
+    {
+      "eligible": false,
+      "fraction_within_1cm": 0.05242463958060288,
+      "fraction_within_2cm": 0.0982961992136304,
+      "fraction_within_3cm": 0.2804718217562254,
+      "frame": 119,
+      "mean_distance_m": 0.048435250382528314,
+      "min_distance_m": 0.0010542601953503054,
+      "p05_distance_m": 0.009493585791994798,
+      "p10_distance_m": 0.020481477548385526,
+      "p25_distance_m": 0.02854229845979328
+    }
+  ],
+  "eligible_frames": [
+    15
+  ],
+  "gate": {
+    "eligibility_frame_count": false,
+    "passed": false
+  },
+  "min_eligible_frames": 3,
+  "object_name": "whitechair",
+  "selected_frames": [
+    15,
+    20,
+    25,
+    31,
+    37,
+    42,
+    47,
+    52,
+    114,
+    119
+  ],
+  "sequence": "sub16_whitechair_002"
+}

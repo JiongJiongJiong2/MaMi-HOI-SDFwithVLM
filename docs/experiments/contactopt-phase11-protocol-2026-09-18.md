@@ -2,7 +2,15 @@
 
 Date: 2026-09-18
 
-Status: frozen before execution
+Status: completed
+
+Result report:
+
+```text
+docs/experiments/contactopt-phase11-replication-2026-09-18.md
+docs/experiments/phase11_cohort/cohort_summary.json
+docs/experiments/phase11_cohort/*.json
+```
 
 ## Goal
 

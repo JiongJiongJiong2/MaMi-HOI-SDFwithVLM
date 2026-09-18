@@ -2,7 +2,13 @@
 
 Date: 2026-09-18
 
-Status: frozen before execution
+Status: completed with partial failure
+
+Result report:
+
+```text
+docs/experiments/contactopt-phase13-temporal-smoothing-2026-09-18.md
+```
 
 ## Trigger
 
@@ -27,8 +33,8 @@ because the smoothing design was chosen after observing Phase 12.
 For each sequence:
 
 1. keep the ContactOpt global pose coefficients `0:3` unchanged;
-2. smooth finger PCA coefficients `3:18` over time with the fixed kernel
-   `[1, 2, 1] / 4` and edge replication;
+2. smooth the ContactOpt-optimized output finger PCA coefficients `3:18`
+   over time with the fixed kernel `[1, 2, 1] / 4` and edge replication;
 3. keep each frame's `hand_mTc` unchanged;
 4. rerun the MANO forward model to obtain the smoothed hand vertices and
    joints;

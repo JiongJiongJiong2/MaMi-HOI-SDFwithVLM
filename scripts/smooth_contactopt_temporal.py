@@ -164,9 +164,9 @@ def summarize_arm(
 
 def per_frame_summary(rows):
     contact_changes = [
-        row["hand_contact_relative_change"]
+        row["contact_relative_change"]
         for row in rows
-        if row["hand_contact_relative_change"] is not None
+        if row["contact_relative_change"] is not None
     ]
     distance_changes = [
         row["distance_relative_change"] for row in rows
@@ -218,11 +218,11 @@ def main():
         with optimized_path.open("rb") as handle:
             runs = pickle.load(handle)
 
-        input_pose = np.asarray(
-            [run["in_ho"].hand_pose for run in runs],
+        output_pose = np.asarray(
+            [run["out_ho"].hand_pose for run in runs],
             dtype=np.float32,
         )
-        smoothed_pose = smooth_pose_sequence(input_pose)
+        smoothed_pose = smooth_pose_sequence(output_pose)
         input_vertices = np.asarray(
             [run["in_ho"].hand_verts for run in runs],
             dtype=np.float32,

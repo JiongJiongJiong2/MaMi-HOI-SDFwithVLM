@@ -8,6 +8,7 @@
 - [Analytic contact baseline](experiments/analytic-contact-baseline.md)：canonical rerun 和晋级条件。
 - [Contact episode baseline](experiments/contact-episode-baseline-2026-09-18.md)：stable contact、onset delay 和 false-contact 诊断结果。
 - [Forward-inverse consistency](experiments/forward-inverse-consistency-2026-09-18.md)：E2 时间一致性诊断；当前表示 NO-GO。
+- [E3 hand data gate](experiments/e3-hand-data-gate-2026-09-18.md)：CPU-only finger supervision 和 MANO/SMPL-X 资产审计。
 - [WM Stage 1 learned residual](experiments/wm-stage1-learned-residual.md)：当前 residual 分支的 NO-GO 决策。
 
 ## 基础实验与边界

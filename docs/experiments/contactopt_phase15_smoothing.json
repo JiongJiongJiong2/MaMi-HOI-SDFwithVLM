@@ -1,0 +1,363 @@
+{
+  "case_count": 4,
+  "case_tag": "phase15",
+  "cases": [
+    {
+      "frames": [
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40
+      ],
+      "object_name": "floorlamp",
+      "raw": {
+        "acceleration_ratio": 5.7684403641316075,
+        "candidate_trajectory": {
+          "acceleration_mm": 23.941965773701668,
+          "jerk_mm": 39.3749475479126,
+          "speed_mm": 46.91991209983826
+        },
+        "frame_summary": {
+          "contact_improved_frames": 8,
+          "distance_improved_frames": 8,
+          "frame_count": 8,
+          "max_object_drift_m": 0.0,
+          "max_wrist_drift_m": 0.0,
+          "mean_contact_relative_change": 1.4764370976984615,
+          "mean_distance_relative_change": -0.49154577965398616
+        },
+        "input_trajectory": {
+          "acceleration_mm": 4.1505093686282635,
+          "jerk_mm": 4.377093631774187,
+          "speed_mm": 43.796394020318985
+        },
+        "jerk_ratio": 8.995683177093147,
+        "speed_ratio": 1.0713190697405395,
+        "temporal_gate": {
+          "acceleration_ratio": false,
+          "jerk_ratio": false,
+          "passed": false,
+          "speed_ratio": true
+        }
+      },
+      "required_improved_frames": 6,
+      "sequence": "sub17_floorlamp_007",
+      "smoothed": {
+        "acceleration_ratio": 1.7824213905946393,
+        "candidate_trajectory": {
+          "acceleration_mm": 7.397956680506468,
+          "jerk_mm": 8.773347362875938,
+          "speed_mm": 42.938973754644394
+        },
+        "frame_summary": {
+          "contact_improved_frames": 8,
+          "distance_improved_frames": 8,
+          "frame_count": 8,
+          "max_object_drift_m": 0.0,
+          "max_wrist_drift_m": 0.0,
+          "mean_contact_relative_change": 1.0188215707824273,
+          "mean_distance_relative_change": -0.48643520539620955
+        },
+        "input_trajectory": {
+          "acceleration_mm": 4.1505093686282635,
+          "jerk_mm": 4.377093631774187,
+          "speed_mm": 43.796394020318985
+        },
+        "jerk_ratio": 2.0043773565154,
+        "promotion_gate": {
+          "acceleration_ratio": true,
+          "contact_improved": true,
+          "distance_not_regressed": true,
+          "jerk_ratio": true,
+          "object_frozen": true,
+          "passed": true,
+          "speed_ratio": true,
+          "wrist_frozen": true
+        },
+        "speed_ratio": 0.980422583072095,
+        "temporal_gate": {
+          "acceleration_ratio": true,
+          "jerk_ratio": true,
+          "passed": true,
+          "speed_ratio": true
+        }
+      }
+    },
+    {
+      "frames": [
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "object_name": "whitechair",
+      "raw": {
+        "acceleration_ratio": 7.670831830710126,
+        "candidate_trajectory": {
+          "acceleration_mm": 40.98658636212349,
+          "jerk_mm": 79.95821535587311,
+          "speed_mm": 36.90173476934433
+        },
+        "frame_summary": {
+          "contact_improved_frames": 6,
+          "distance_improved_frames": 6,
+          "frame_count": 6,
+          "max_object_drift_m": 1.4901161193847656e-08,
+          "max_wrist_drift_m": 0.0,
+          "mean_contact_relative_change": 0.8916954021665005,
+          "mean_distance_relative_change": -0.29416781011610854
+        },
+        "input_trajectory": {
+          "acceleration_mm": 5.343173630535603,
+          "jerk_mm": 6.460371892899275,
+          "speed_mm": 29.131298884749413
+        },
+        "jerk_ratio": 12.376720207664329,
+        "speed_ratio": 1.2667383941696755,
+        "temporal_gate": {
+          "acceleration_ratio": false,
+          "jerk_ratio": false,
+          "passed": false,
+          "speed_ratio": true
+        }
+      },
+      "required_improved_frames": 5,
+      "sequence": "sub16_whitechair_002",
+      "smoothed": {
+        "acceleration_ratio": 1.99451839568123,
+        "candidate_trajectory": {
+          "acceleration_mm": 10.657058097422123,
+          "jerk_mm": 13.67097906768322,
+          "speed_mm": 28.34968827664852
+        },
+        "frame_summary": {
+          "contact_improved_frames": 6,
+          "distance_improved_frames": 6,
+          "frame_count": 6,
+          "max_object_drift_m": 0.0,
+          "max_wrist_drift_m": 0.0,
+          "mean_contact_relative_change": 0.4390074783756446,
+          "mean_distance_relative_change": -0.1556209038806695
+        },
+        "input_trajectory": {
+          "acceleration_mm": 5.343173630535603,
+          "jerk_mm": 6.460371892899275,
+          "speed_mm": 29.131298884749413
+        },
+        "jerk_ratio": 2.116128807183572,
+        "promotion_gate": {
+          "acceleration_ratio": true,
+          "contact_improved": true,
+          "distance_not_regressed": true,
+          "jerk_ratio": true,
+          "object_frozen": true,
+          "passed": true,
+          "speed_ratio": true,
+          "wrist_frozen": true
+        },
+        "speed_ratio": 0.9731693869472441,
+        "temporal_gate": {
+          "acceleration_ratio": true,
+          "jerk_ratio": true,
+          "passed": true,
+          "speed_ratio": true
+        }
+      }
+    },
+    {
+      "frames": [
+        102,
+        103,
+        104,
+        105,
+        106,
+        107,
+        108,
+        109
+      ],
+      "object_name": "clothesstand",
+      "raw": {
+        "acceleration_ratio": 11.900195924049545,
+        "candidate_trajectory": {
+          "acceleration_mm": 18.819985911250114,
+          "jerk_mm": 41.93005710840225,
+          "speed_mm": 12.196401134133339
+        },
+        "frame_summary": {
+          "contact_improved_frames": 8,
+          "distance_improved_frames": 8,
+          "frame_count": 8,
+          "max_object_drift_m": 1.1920928955078125e-07,
+          "max_wrist_drift_m": 0.0,
+          "mean_contact_relative_change": 0.32216195096238953,
+          "mean_distance_relative_change": -0.27102296836074424
+        },
+        "input_trajectory": {
+          "acceleration_mm": 1.5814853832125664,
+          "jerk_mm": 1.4086250448599458,
+          "speed_mm": 5.835623014718294
+        },
+        "jerk_ratio": 29.76665597520396,
+        "speed_ratio": 2.0899912662919164,
+        "temporal_gate": {
+          "acceleration_ratio": false,
+          "jerk_ratio": false,
+          "passed": false,
+          "speed_ratio": false
+        }
+      },
+      "required_improved_frames": 6,
+      "sequence": "sub16_clothesstand_001",
+      "smoothed": {
+        "acceleration_ratio": 2.588825085816147,
+        "candidate_trajectory": {
+          "acceleration_mm": 4.094189032912254,
+          "jerk_mm": 5.432895850390196,
+          "speed_mm": 7.0562949404120445
+        },
+        "frame_summary": {
+          "contact_improved_frames": 8,
+          "distance_improved_frames": 8,
+          "frame_count": 8,
+          "max_object_drift_m": 0.0,
+          "max_wrist_drift_m": 0.0,
+          "mean_contact_relative_change": 0.320823568449166,
+          "mean_distance_relative_change": -0.27315872321725576
+        },
+        "input_trajectory": {
+          "acceleration_mm": 1.5814853832125664,
+          "jerk_mm": 1.4086250448599458,
+          "speed_mm": 5.835623014718294
+        },
+        "jerk_ratio": 3.856878642201316,
+        "promotion_gate": {
+          "acceleration_ratio": false,
+          "contact_improved": true,
+          "distance_not_regressed": true,
+          "jerk_ratio": false,
+          "object_frozen": true,
+          "passed": false,
+          "speed_ratio": true,
+          "wrist_frozen": true
+        },
+        "speed_ratio": 1.209175939332448,
+        "temporal_gate": {
+          "acceleration_ratio": false,
+          "jerk_ratio": false,
+          "passed": false,
+          "speed_ratio": true
+        }
+      }
+    },
+    {
+      "frames": [
+        69,
+        70,
+        71,
+        72,
+        73,
+        74,
+        75,
+        76
+      ],
+      "object_name": "largebox",
+      "raw": {
+        "acceleration_ratio": 2.715426596106642,
+        "candidate_trajectory": {
+          "acceleration_mm": 12.836315669119358,
+          "jerk_mm": 22.007249295711517,
+          "speed_mm": 27.36358344554901
+        },
+        "frame_summary": {
+          "contact_improved_frames": 8,
+          "distance_improved_frames": 8,
+          "frame_count": 8,
+          "max_object_drift_m": 0.0,
+          "max_wrist_drift_m": 0.0,
+          "mean_contact_relative_change": 0.846569668577785,
+          "mean_distance_relative_change": -0.4216918362089119
+        },
+        "input_trajectory": {
+          "acceleration_mm": 4.727181978523731,
+          "jerk_mm": 5.892087239772081,
+          "speed_mm": 26.62314660847187
+        },
+        "jerk_ratio": 3.7350515021503323,
+        "speed_ratio": 1.027811770260151,
+        "temporal_gate": {
+          "acceleration_ratio": false,
+          "jerk_ratio": false,
+          "passed": false,
+          "speed_ratio": true
+        }
+      },
+      "required_improved_frames": 6,
+      "sequence": "sub16_largebox_005",
+      "smoothed": {
+        "acceleration_ratio": 1.0675844841761049,
+        "candidate_trajectory": {
+          "acceleration_mm": 5.046666134148836,
+          "jerk_mm": 6.158031057566404,
+          "speed_mm": 26.531917974352837
+        },
+        "frame_summary": {
+          "contact_improved_frames": 8,
+          "distance_improved_frames": 8,
+          "frame_count": 8,
+          "max_object_drift_m": 0.0,
+          "max_wrist_drift_m": 0.0,
+          "mean_contact_relative_change": 0.8109663761524809,
+          "mean_distance_relative_change": -0.4236702941476318
+        },
+        "input_trajectory": {
+          "acceleration_mm": 4.727181978523731,
+          "jerk_mm": 5.892087239772081,
+          "speed_mm": 26.62314660847187
+        },
+        "jerk_ratio": 1.045135756985942,
+        "promotion_gate": {
+          "acceleration_ratio": true,
+          "contact_improved": true,
+          "distance_not_regressed": true,
+          "jerk_ratio": true,
+          "object_frozen": true,
+          "passed": true,
+          "speed_ratio": true,
+          "wrist_frozen": true
+        },
+        "speed_ratio": 0.9965733338939732,
+        "temporal_gate": {
+          "acceleration_ratio": true,
+          "jerk_ratio": true,
+          "passed": true,
+          "speed_ratio": true
+        }
+      }
+    }
+  ],
+  "kernel": [
+    1.0,
+    4.0,
+    6.0,
+    4.0,
+    1.0
+  ],
+  "manifest_json": "phase15_manifest.json",
+  "method": "smooth ContactOpt pose coefficients 3:18 with binomial5; keep global pose coefficients 0:3 and hand_mTc unchanged; rerun MANO forward geometry",
+  "optimized_pkl_dir": "data",
+  "passed": false,
+  "raw_temporal_pass_count": 0,
+  "smoothed_promotion_pass_count": 3,
+  "smoothed_temporal_pass_count": 3,
+  "thresholds": {
+    "max_acceleration_ratio": 2.0,
+    "max_jerk_ratio": 3.0,
+    "max_speed_ratio": 2.0
+  }
+}

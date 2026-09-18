@@ -28,6 +28,7 @@ def parse_args():
     parser.add_argument("--min-selected-cases", type=int, default=6)
     parser.add_argument("--min-eligible-cases", type=int, default=4)
     parser.add_argument("--min-contact-successes", type=int, default=3)
+    parser.add_argument("--geometry-npz-dir", type=Path)
     return parser.parse_args()
 
 
@@ -79,6 +80,8 @@ def main():
     )
     args.output_dir.mkdir(parents=True, exist_ok=True)
     case_dir = args.case_dir or args.output_dir
+    if args.geometry_npz_dir is not None:
+        args.geometry_npz_dir.mkdir(parents=True, exist_ok=True)
 
     if args.summary_only:
         case_results = [
@@ -120,6 +123,17 @@ def main():
             "--output-json",
             str(output_json),
         ]
+        if candidate.get("frames"):
+            command.extend(
+                ["--frames", *[str(frame) for frame in candidate["frames"]]]
+            )
+        if args.geometry_npz_dir is not None:
+            command.extend(
+                [
+                    "--save-geometry-npz",
+                    str(args.geometry_npz_dir / f"{sequence}.npz"),
+                ]
+            )
         print(
             f"[{index + 1}/{len(manifest['selected'])}] "
             f"{sequence}",

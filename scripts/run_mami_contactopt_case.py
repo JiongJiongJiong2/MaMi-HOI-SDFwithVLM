@@ -65,6 +65,7 @@ def parse_args():
     parser.add_argument("--min-eligible-frames", type=int, default=3)
     parser.add_argument("--output-tag", default="mami_phase7")
     parser.add_argument("--output-json", type=Path, required=True)
+    parser.add_argument("--save-geometry-npz", type=Path)
     return parser.parse_args()
 
 
@@ -388,11 +389,16 @@ def make_contactopt_args(samples, output_tag, n_iter):
     )
 
 
-def evaluate_runs(optimized_path):
+def evaluate_runs(optimized_path, geometry_path=None, frames=None):
     with optimized_path.open("rb") as handle:
         runs = pickle.load(handle)
 
     rows = []
+    input_vertices = []
+    refined_vertices = []
+    input_joints = []
+    refined_joints = []
+    object_vertices = []
     for index, run in enumerate(runs):
         input_hand = run["in_ho"]
         refined_hand = run["out_ho"]
@@ -469,6 +475,33 @@ def evaluate_runs(optimized_path):
                     ).mean()
                 ),
             }
+        )
+        input_vertices.append(input_hand.hand_verts)
+        refined_vertices.append(refined_hand.hand_verts)
+        input_joints.append(input_hand.hand_joints)
+        refined_joints.append(refined_hand.hand_joints)
+        object_vertices.append(input_hand.obj_verts)
+
+    if geometry_path is not None:
+        geometry_path.parent.mkdir(parents=True, exist_ok=True)
+        np.savez_compressed(
+            geometry_path,
+            frames=np.asarray(frames, dtype=np.int64),
+            input_hand_vertices=np.asarray(
+                input_vertices, dtype=np.float32
+            ),
+            refined_hand_vertices=np.asarray(
+                refined_vertices, dtype=np.float32
+            ),
+            input_hand_joints=np.asarray(
+                input_joints, dtype=np.float32
+            ),
+            refined_hand_joints=np.asarray(
+                refined_joints, dtype=np.float32
+            ),
+            object_vertices=np.asarray(
+                object_vertices, dtype=np.float32
+            ),
         )
 
     return rows
@@ -604,7 +637,11 @@ def main():
     optimized_path = (
         contactopt_root / "data" / f"optimized_{args.output_tag}.pkl"
     )
-    rows = evaluate_runs(optimized_path)
+    rows = evaluate_runs(
+        optimized_path,
+        geometry_path=args.save_geometry_npz,
+        frames=eligible_frames,
+    )
     summary = aggregate_rows(rows, alignment)
     gate, required_improved_frames = build_gate(
         summary,
@@ -624,6 +661,11 @@ def main():
             "min_eligible_frames": args.min_eligible_frames,
             "required_improved_frames": required_improved_frames,
             "optimized_pkl": str(optimized_path),
+            "geometry_npz": (
+                str(args.save_geometry_npz)
+                if args.save_geometry_npz is not None
+                else None
+            ),
             "rows": rows,
             "alignment": alignment,
             "contact_metric_policy": (

@@ -9,6 +9,7 @@
 - [Contact episode baseline](experiments/contact-episode-baseline-2026-09-18.md)：stable contact、onset delay 和 false-contact 诊断结果。
 - [Forward-inverse consistency](experiments/forward-inverse-consistency-2026-09-18.md)：E2 时间一致性诊断；当前表示 NO-GO。
 - [Sequence-level contact dataset](experiments/contactopt-sequence-dataset-2026-09-19.md)：404 个序列不重叠连续窗口的冻结清单与覆盖限制。
+- [Sequence ContactOpt and smoothing](experiments/contactopt-sequence-contact-and-temporal-2026-09-19.md)：376 个 train/dev 窗口的原始与五 tap 平滑结果；固定平滑仍为 NO-GO。
 - [E3 hand data gate](experiments/e3-hand-data-gate-2026-09-18.md)：CPU-only finger supervision 和 MANO/SMPL-X 资产审计。
 - [WM Stage 1 learned residual](experiments/wm-stage1-learned-residual.md)：当前 residual 分支的 NO-GO 决策。
 

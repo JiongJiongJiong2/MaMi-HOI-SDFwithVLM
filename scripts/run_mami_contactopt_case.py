@@ -586,6 +586,8 @@ def main():
     sequence_db = args.sequence_db.resolve()
     output_json = args.output_json.resolve()
     contactopt_root = args.contactopt_root.resolve()
+    if str(contactopt_root) not in sys.path:
+        sys.path.insert(0, str(contactopt_root))
     right_hand_vids = np.load(args.right_hand_vids)
 
     candidate = np.load(candidate_path, allow_pickle=True)

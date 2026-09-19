@@ -28,6 +28,7 @@ def parse_args():
     parser.add_argument("--batch-summary", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--output-json", type=Path, required=True)
+    parser.add_argument("--initial-pose-dir", type=Path)
     parser.add_argument(
         "--contactopt-root",
         type=Path,
@@ -139,6 +140,7 @@ def optimize_segment(
     end,
     mano_layer,
     args,
+    initial_pose=None,
 ):
     from contactopt import util
 
@@ -150,7 +152,13 @@ def optimize_segment(
         ),
         device="cuda",
     )
-    if args.initial_smoothing == "binomial5":
+    if initial_pose is not None:
+        base_pose = torch.as_tensor(
+            initial_pose[start : end + 1],
+            dtype=torch.float32,
+            device="cuda",
+        )
+    elif args.initial_smoothing == "binomial5":
         base_pose_np = smooth_pose_sequence(
             pose0.detach().cpu().numpy(),
             kernel=(1.0, 4.0, 6.0, 4.0, 1.0),
@@ -432,10 +440,21 @@ def main():
     for row_index, row in enumerate(rows, start=1):
         with Path(row["optimized_pkl"]).open("rb") as handle:
             runs = pickle.load(handle)
-        optimized_pose = np.asarray(
-            [run["out_ho"].hand_pose for run in runs],
-            dtype=np.float32,
-        )
+        if args.initial_pose_dir is not None:
+            initial_pose_path = (
+                args.initial_pose_dir / f"{row['chunk_id']}_optimized.npz"
+            )
+            if not initial_pose_path.is_file():
+                raise FileNotFoundError(initial_pose_path)
+            with np.load(initial_pose_path, allow_pickle=True) as archive:
+                optimized_pose = np.asarray(
+                    archive["hand_pose"], dtype=np.float32
+                )
+        else:
+            optimized_pose = np.asarray(
+                [run["out_ho"].hand_pose for run in runs],
+                dtype=np.float32,
+            )
         for start, end in contiguous_segments(row["frames"]):
             segment_pose, segment_stats = optimize_segment(
                 runs,
@@ -443,6 +462,7 @@ def main():
                 end,
                 mano_layer,
                 args,
+                initial_pose=optimized_pose,
             )
             optimized_pose[start : end + 1] = segment_pose
             segment_stats.update(
@@ -472,6 +492,11 @@ def main():
         "splits": list(args.split),
         "sequence_limit": args.sequence_limit,
         "sequence_filter": args.sequence,
+        "initial_pose_dir": (
+            str(args.initial_pose_dir)
+            if args.initial_pose_dir is not None
+            else None
+        ),
         "method": (
             "optimize ContactOpt PCA finger coefficients with fidelity, "
             "contact-distance preservation, acceleration/jerk tail losses; "

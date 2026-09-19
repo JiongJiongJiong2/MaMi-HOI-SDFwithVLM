@@ -22,7 +22,17 @@ Raw evidence:
 docs/experiments/contactopt_sequence_dataset_batch_2026-09-19.json
 docs/experiments/contactopt_sequence_dataset_temporal_2026-09-19.json
 docs/experiments/contactopt_sequence_dataset_smoothing_binomial5_2026-09-19.json
+docs/experiments/contactopt_sequence_dataset_smoothing_binomial5_segments_summary_2026-09-19.json
 ```
+
+The segment-wise correction completed on the server:
+
+```text
+/root/autodl-tmp/contact_action_20260914/sequence_contactopt_v1_20260919/analysis/per_window_smoothing_binomial5_segments.json
+```
+
+The earlier smoothing file is retained as history only. It smoothed across
+four-frame gaps between windows and is superseded by the segment-wise result.
 
 ## Raw Frame-wise ContactOpt
 
@@ -54,37 +64,37 @@ PCA coefficients. Global pose and `hand_mTc` remained unchanged.
 
 | Split | Windows | Temporal pass | Contact pass | Combined pass |
 |---|---:|---:|---:|---:|
-| train | 256 | 229 | 246 | 220 |
-| dev | 120 | 91 | 117 | 88 |
-| all | 376 | 320 | 363 | 308 |
+| train | 256 | 229 | 245 | 220 |
+| dev | 120 | 95 | 117 | 92 |
+| all | 376 | 324 | 362 | 312 |
 
 Mean ratios improve substantially:
 
 ```text
-speed        1.088
-acceleration 1.655
-jerk         1.698
+speed        1.090
+acceleration 1.635
+jerk         1.679
 ```
 
 The remaining problem is the tail rather than the average:
 
 ```text
 ratio percentiles      50%     90%     95%     99%     max
-speed                 1.008   1.202   1.454   2.516   4.591
-acceleration          1.237   2.530   3.675   7.343  19.279
-jerk                  1.223   2.552   3.876   8.647  23.923
+speed                 1.008   1.234   1.417   2.673   4.840
+acceleration          1.216   2.564   3.603   7.078  22.392
+jerk                  1.195   2.590   3.586   9.132  23.266
 ```
 
-Of the 68 combined failures:
+Of the 64 combined failures:
 
 ```text
 contact-only failures   12
-temporal-only failures  55
-both                     1
+temporal-only failures  50
+both                     2
 ```
 
-The worst object is `floorlamp` with 14 combined failures out of 32 windows
-and mean acceleration/jerk ratios `3.672/3.703`. `largebox`, `trashcan`, and
+The worst object is `floorlamp` with 15 combined failures out of 32 windows
+and mean acceleration/jerk ratios `3.827/3.738`. `largebox`, `trashcan`, and
 `whitechair` are substantially more stable.
 
 ## Decision

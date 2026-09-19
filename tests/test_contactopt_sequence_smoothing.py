@@ -9,10 +9,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from analyze_contactopt_sequence_smoothing import (
     arm_metrics,
     contact_gate,
+    contiguous_segments,
 )
 
 
 class ContactOptSequenceSmoothingTest(unittest.TestCase):
+    def test_contiguous_segments_split_on_gaps(self):
+        self.assertEqual(
+            contiguous_segments([0, 1, 2, 5, 6, 10]),
+            [(0, 2), (3, 4), (5, 5)],
+        )
+
     def test_arm_metrics_passes_identical_trajectory(self):
         values = np.asarray(
             [

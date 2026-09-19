@@ -1,0 +1,50 @@
+{
+  "kernel": "binomial5",
+  "kernel_values": [
+    1.0,
+    4.0,
+    6.0,
+    4.0,
+    1.0
+  ],
+  "window_count": 376,
+  "decision": "NO-GO",
+  "aggregate": {
+    "all": {
+      "window_count": 376,
+      "smoothed_temporal_pass_count": 324,
+      "smoothed_contact_pass_count": 362,
+      "smoothed_combined_pass_count": 312,
+      "smoothed_speed_ratio_mean": 1.090,
+      "smoothed_acceleration_ratio_mean": 1.635,
+      "smoothed_jerk_ratio_mean": 1.679
+    },
+    "train": {
+      "window_count": 256,
+      "smoothed_temporal_pass_count": 229,
+      "smoothed_contact_pass_count": 245,
+      "smoothed_combined_pass_count": 220,
+      "smoothed_speed_ratio_mean": 1.055,
+      "smoothed_acceleration_ratio_mean": 1.463,
+      "smoothed_jerk_ratio_mean": 1.498
+    },
+    "dev": {
+      "window_count": 120,
+      "smoothed_temporal_pass_count": 95,
+      "smoothed_contact_pass_count": 117,
+      "smoothed_combined_pass_count": 92,
+      "smoothed_speed_ratio_mean": 1.166,
+      "smoothed_acceleration_ratio_mean": 2.004,
+      "smoothed_jerk_ratio_mean": 2.065
+    }
+  },
+  "failure_counts": {
+    "combined": 64,
+    "contact": 14,
+    "temporal": 52,
+    "contact_only": 12,
+    "temporal_only": 50,
+    "both": 2
+  },
+  "source_full_manifest": "/root/autodl-tmp/contact_action_20260914/sequence_contactopt_v1_20260919/analysis/per_window_smoothing_binomial5_segments.json"
+}

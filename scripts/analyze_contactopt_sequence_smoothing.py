@@ -48,6 +48,19 @@ KERNELS = {
 }
 
 
+def contiguous_segments(frames):
+    frames = sorted(int(frame) for frame in frames)
+    segments = []
+    start = 0
+    for index in range(1, len(frames)):
+        if frames[index] != frames[index - 1] + 1:
+            segments.append((start, index - 1))
+            start = index
+    if frames:
+        segments.append((start, len(frames) - 1))
+    return segments
+
+
 def ratio(value, baseline):
     if baseline <= 0:
         return None
@@ -97,8 +110,18 @@ def arm_metrics(input_vertices, candidate_vertices, thresholds):
 def contact_gate(contact_rows, thresholds):
     required = max(3, int(np.ceil(0.7 * len(contact_rows))))
     improved = sum(
-        row["contact_relative_change"] is not None
-        and row["contact_relative_change"] > 0
+        (
+            row.get(
+                "contact_relative_change",
+                row.get("hand_contact_relative_change"),
+            )
+            is not None
+        )
+        and row.get(
+            "contact_relative_change",
+            row.get("hand_contact_relative_change"),
+        )
+        > 0
         for row in contact_rows
     )
     distance_changes = [
@@ -211,7 +234,7 @@ def main():
     kernel = KERNELS[args.kernel]
     windows = []
 
-    for row in batch["rows"]:
+    for row_index, row in enumerate(batch["rows"], start=1):
         optimized_path = Path(row["optimized_pkl"])
         with optimized_path.open("rb") as handle:
             runs = pickle.load(handle)
@@ -219,7 +242,12 @@ def main():
             [run["out_ho"].hand_pose for run in runs],
             dtype=np.float32,
         )
-        smoothed_pose = smooth_pose_sequence(output_pose, kernel=kernel)
+        smoothed_pose = output_pose.copy()
+        for start, end in contiguous_segments(row["frames"]):
+            smoothed_pose[start : end + 1] = smooth_pose_sequence(
+                output_pose[start : end + 1],
+                kernel=kernel,
+            )
         input_vertices = np.asarray(
             [run["in_ho"].hand_verts for run in runs],
             dtype=np.float32,
@@ -231,7 +259,6 @@ def main():
 
         smoothed_hands = []
         smoothed_vertices = []
-        raw_contact_rows = []
         smoothed_contact_rows = []
         for run, pose in zip(runs, smoothed_pose):
             input_hand = run["in_ho"]
@@ -240,14 +267,15 @@ def main():
             smoothed_hand.run_mano()
             smoothed_hands.append(smoothed_hand)
             smoothed_vertices.append(smoothed_hand.hand_verts)
-            raw_contact_rows.append(
-                contact_metrics(input_hand, run["out_ho"])
-            )
             smoothed_contact_rows.append(
                 contact_metrics(input_hand, smoothed_hand)
             )
         smoothed_vertices = np.asarray(smoothed_vertices, dtype=np.float32)
 
+        case = json.loads(
+            Path(row["output_json"]).read_text(encoding="utf-8")
+        )
+        eligible_index = frame_map(case["eligible_frames"])
         chunk_index = frame_map(row["frames"])
         for window in row["windows"]:
             indices = [chunk_index[int(frame)] for frame in window]
@@ -262,7 +290,10 @@ def main():
                 thresholds,
             )
             raw_contact = contact_gate(
-                [raw_contact_rows[index] for index in indices],
+                [
+                    case["rows"][eligible_index[int(frame)]]
+                    for frame in window
+                ],
                 thresholds,
             )
             smoothed_contact = contact_gate(
@@ -295,6 +326,10 @@ def main():
                     ),
                 }
             )
+        print(
+            f"[{row_index}/{len(batch['rows'])}] {row['chunk_id']}",
+            flush=True,
+        )
 
     result = {
         "batch_summary": str(args.batch_summary),

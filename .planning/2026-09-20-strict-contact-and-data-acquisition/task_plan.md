@@ -8,15 +8,15 @@ events.
 
 ## Current Phase
 
-Phase 1
+Phase 2
 
 ## Phases
 
 ### Phase 1: Strict 1 mm Manifest and Video-Disjoint Split
-- [ ] Recompute episodes at `1 mm`
-- [ ] Build train/dev/test split with no shared videos
-- [ ] Freeze the strict-contact protocol before modeling
-- **Status:** pending
+- [x] Recompute episodes at `1 mm`
+- [x] Build train/dev/test split with no shared videos
+- [x] Freeze the strict-contact protocol before modeling
+- **Status:** complete
 
 ### Phase 2: Strict-Contact B Pilot
 - [ ] Train hold/onset/release baselines

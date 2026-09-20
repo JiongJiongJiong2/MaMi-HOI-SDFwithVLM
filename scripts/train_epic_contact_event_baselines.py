@@ -21,6 +21,11 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--frames", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument(
+        "--threshold-m",
+        type=float,
+        default=THRESHOLD_M,
+    )
     parser.add_argument("--epochs", type=int, default=600)
     parser.add_argument("--learning-rate", type=float, default=0.05)
     parser.add_argument("--l2", type=float, default=1e-4)
@@ -159,7 +164,11 @@ def contiguous_segments(rows):
     return segments
 
 
-def build_samples(frames, object_names):
+def build_samples(
+    frames,
+    object_names,
+    threshold_m=THRESHOLD_M,
+):
     observations = defaultdict(list)
     for row in frames:
         for hand in ("left", "right"):
@@ -180,7 +189,7 @@ def build_samples(frames, object_names):
                 "frame": int(row["frame"]),
                 "distance": float(hand_row["min_distance_m"]),
                 "contact": bool(
-                    float(hand_row["min_distance_m"]) <= THRESHOLD_M
+                    float(hand_row["min_distance_m"]) <= threshold_m
                 ),
             })
 
@@ -201,16 +210,16 @@ def build_samples(frames, object_names):
                     int(row["contact"]) for row in history
                 ]
                 distances = [
-                    row["distance"] / THRESHOLD_M for row in history
+                    row["distance"] / threshold_m for row in history
                 ]
                 delta1 = (
                     history[-1]["distance"]
                     - history[-2]["distance"]
-                ) / THRESHOLD_M
+                ) / threshold_m
                 delta2 = (
                     history[-2]["distance"]
                     - history[-3]["distance"]
-                ) / THRESHOLD_M
+                ) / threshold_m
                 hold_duration = 1
                 for previous in reversed(history[:-1]):
                     if previous["contact"] != current["contact"]:
@@ -488,7 +497,11 @@ def main():
         for hand in ("left", "right")
         if row[hand]["valid"] and row[hand]["object_name"] is not None
     })
-    samples = build_samples(frames, object_names)
+    samples = build_samples(
+        frames,
+        object_names,
+        args.threshold_m,
+    )
     split = split_arrays(samples)
     train_x, dev_x, test_x, mean, std = standardize(
         split["train"]["x"],
@@ -605,7 +618,7 @@ def main():
         for split_name, values in split.items()
     }
     result = {
-        "threshold_m": THRESHOLD_M,
+        "threshold_m": args.threshold_m,
         "history": HISTORY,
         "targets": list(TARGETS),
         "object_names": object_names,

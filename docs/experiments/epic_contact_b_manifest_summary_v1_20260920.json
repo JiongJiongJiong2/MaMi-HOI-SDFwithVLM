@@ -1,0 +1,54 @@
+{
+  "contact_threshold_m": 0.003,
+  "counts": {
+    "episodes": 37162,
+    "merged_frames": 57686,
+    "records": {
+      "test_records": 6316,
+      "train_records": 55983
+    },
+    "same_object_bimanual_frames": 3975,
+    "same_object_both_contact_frames": 3907
+  },
+  "episode_observation_counts": {
+    "test:onset=False:release=False": 3869,
+    "test:onset=False:release=True": 2,
+    "test:onset=True:release=False": 1,
+    "train:onset=False:release=False": 33237,
+    "train:onset=False:release=True": 16,
+    "train:onset=True:release=False": 20,
+    "train:onset=True:release=True": 17
+  },
+  "max_gap_frames": 1,
+  "memo_window": 1000,
+  "outputs": {
+    "episodes": {
+      "path": "/root/autodl-tmp/epic_contact_b_manifest_v1_20260920/epic_contact_episodes_v1.jsonl.gz",
+      "rows": 37162,
+      "sha256": "2007dec5bc7f84f9503cc74312fbc4cc7d39a4970cc2537b0c3a17d5f3fd104d",
+      "size": 782856
+    },
+    "frames": {
+      "path": "/root/autodl-tmp/epic_contact_b_manifest_v1_20260920/epic_contact_frames_v1.jsonl.gz",
+      "rows": 57686,
+      "sha256": "aa1fec2d7346c44e48894cc4c1320797a115a4b4d120beaf2f1859e78aaed875",
+      "size": 1083287
+    }
+  },
+  "sources": {
+    "test": {
+      "path": "/root/autodl-tmp/epic_contact_data/training_pkls/epic_contact_v3_01-06-26_parallel_test_20260611.pkl",
+      "records_processed": 6316,
+      "sha256": "35df2fea120b3676dc13d6b2d5a7c215c4e11b06ed35e102de7cda08d74456a4",
+      "size": 807342721
+    },
+    "train": {
+      "path": "/root/autodl-tmp/epic_contact_data/training_pkls/epic_contact_v3_01-06-26_parallel_train_20260611.pkl",
+      "records_processed": 55983,
+      "sha256": "121477112249faa7669a689bf22aa19ee60292ccce6059d6d6565cbc5bc90f5d",
+      "size": 7113483199
+    }
+  },
+  "standard_load": true,
+  "trim_memo": false
+}

@@ -4,6 +4,12 @@ Date: 2026-09-20
 
 Status: test manifest complete; full train manifest blocked by resources
 
+Superseded by:
+
+```text
+docs/experiments/epic-contact-b-manifest-2026-09-20.md
+```
+
 Protocol:
 
 ```text

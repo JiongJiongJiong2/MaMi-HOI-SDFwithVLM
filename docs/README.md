@@ -19,6 +19,7 @@
 - [Server storage audit](server-storage-audit-2026-09-20.md)：服务器可回收空间、保留项与删除顺序；本轮未删除任何文件。
 - [EPIC-Contact B manifest protocol](experiments/epic-contact-b-manifest-protocol-2026-09-20.md)：流式提取接触 frame 与 episode 的紧凑清单协议。
 - [EPIC-Contact B manifest test pilot](experiments/epic-contact-b-manifest-test-pilot-2026-09-20.md)：test manifest 已完成；训练 manifest 受内存和传输资源阻断。
+- [EPIC-Contact B manifest result](experiments/epic-contact-b-manifest-2026-09-20.md)：60 GB 实例完成 train/test 全量流式 manifest；57,686 frames、37,162 episodes。
 - [Sequence-level contact dataset](experiments/contactopt-sequence-dataset-2026-09-19.md)：404 个序列不重叠连续窗口的冻结清单与覆盖限制。
 - [Sequence ContactOpt and smoothing](experiments/contactopt-sequence-contact-and-temporal-2026-09-19.md)：376 个 train/dev 窗口的原始与五 tap 平滑结果；固定平滑仍为 NO-GO。
 - [E3 hand data gate](experiments/e3-hand-data-gate-2026-09-18.md)：CPU-only finger supervision 和 MANO/SMPL-X 资产审计。

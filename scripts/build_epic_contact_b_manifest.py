@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import gc
 import gzip
 import hashlib
 import json
@@ -31,6 +32,7 @@ def parse_args():
     parser.add_argument("--progress-every", type=int, default=5000)
     parser.add_argument("--trim-memo", action="store_true")
     parser.add_argument("--memo-window", type=int, default=1000)
+    parser.add_argument("--standard-load", action="store_true")
     return parser.parse_args()
 
 
@@ -494,6 +496,7 @@ def stream_pickle(
     progress_every,
     trim_memo,
     memo_window,
+    standard_load,
 ):
     processed = 0
 
@@ -510,16 +513,25 @@ def stream_pickle(
             )
 
     with Path(path).open("rb") as handle:
-        unpickler = StreamingTopLevelUnpickler(
-            handle,
-            on_sample,
-            trim_memo=trim_memo,
-            memo_window=memo_window,
-        )
-        try:
-            unpickler.load()
-        except StopStream:
-            pass
+        if standard_load:
+            data = pickle.load(handle)
+            for key, sample in data.items():
+                if max_samples and processed >= max_samples:
+                    break
+                on_sample(key, sample)
+            del data
+            gc.collect()
+        else:
+            unpickler = StreamingTopLevelUnpickler(
+                handle,
+                on_sample,
+                trim_memo=trim_memo,
+                memo_window=memo_window,
+            )
+            try:
+                unpickler.load()
+            except StopStream:
+                pass
     return processed
 
 
@@ -547,6 +559,7 @@ def main():
             args.progress_every,
             args.trim_memo,
             args.memo_window,
+            args.standard_load,
         )
         sources[split] = {
             **file_identity(path),
@@ -576,6 +589,7 @@ def main():
         "max_gap_frames": args.max_gap_frames,
         "trim_memo": args.trim_memo,
         "memo_window": args.memo_window,
+        "standard_load": args.standard_load,
         "sources": sources,
         "counts": {
             "records": dict(accumulator.counts),

@@ -2,7 +2,7 @@
 
 Date: 2026-09-20
 
-Status: complete with full B model NO-GO
+Status: official 3 mm lifecycle NO-GO; strict-contact second gate required
 
 Protocol:
 
@@ -14,13 +14,13 @@ Summary:
 
 ```text
 docs/experiments/epic_contact_lifecycle_summary_v1_20260920.json
-SHA-256 a0f9ec0f1fb1fcc61620cbbeb7f842cc9dd4a9123b344b62b05208c898cd5e37
+SHA-256 2835ac67b438b50c959f706b15b03ffb7b9e2f215f356b088afe89180f1e30f8
 ```
 
 Server summary:
 
 ```text
-/root/autodl-tmp/epic_contact_b_manifest_v1_20260920/lifecycle_summary.json
+/root/autodl-tmp/epic_contact_b_manifest_v1_20260920/lifecycle_summary_v2.json
 ```
 
 ## Episode Statistics
@@ -84,21 +84,47 @@ release labels ready:            false (33 < 100)
 complete episode gate:           false (17 < 50)
 official split video-disjoint:   false (14 overlapping videos)
 bimanual analysis ready:         true
-full B model ready:              false
+full B model at official 3 mm:   false
 handover analysis ready:         false
 ```
 
+## Threshold Sensitivity
+
+The manifest stores minimum hand-object distance, so contact can be
+recounted at stricter thresholds:
+
+| Threshold | Train onset | Train release | Train complete | Test complete |
+|---:|---:|---:|---:|---:|
+| 0.5 mm | 3,399 | 3,330 | 2,481 | 275 |
+| 1.0 mm | 2,100 | 2,132 | 1,160 | 100 |
+| 1.5 mm | 534 | 521 | 235 | 11 |
+| 2.0 mm | 163 | 159 | 66 | 1 |
+| 3.0 mm | 37 | 33 | 17 | 0 |
+
+The strict `1 mm` definition has enough lifecycle events for a B pilot.
+This is a threshold-sensitivity result, not permission to replace the
+official `3 mm` protocol after seeing the outcome.
+
+## Independent Split Blocker
+
+Even the strict-contact route still has `14` videos shared between train
+and test. A new video-disjoint split is required before any learned
+comparison.
+
 ## Decision
 
-Do not train a full contact lifecycle model on EPIC-Contact. The dataset
-can support a narrow hold-persistence or simultaneous-contact diagnostic,
-but it should not be used to claim reliable onset/release modeling.
+Do not train a full contact lifecycle model under the official `3 mm`
+protocol. The dataset can support a narrow hold-persistence or
+simultaneous-contact diagnostic, but the official definition does not
+support reliable onset/release modeling.
 
-The next B-related work, if retained, must be limited to:
+The strict `1 mm` lifecycle is a different, testable mechanism and may be
+pursued only through:
 
-1. a contact-hold persistence baseline;
-2. simultaneous bimanual-contact analysis;
-3. a new video-disjoint split.
+1. a newly frozen strict-contact protocol;
+2. a video-disjoint train/dev/test split;
+3. a threshold sensitivity curve reported alongside the primary result;
+4. contact-hold persistence and trivial-copy controls.
 
 Release or handover claims require additional data.
 
@@ -106,5 +132,5 @@ Release or handover claims require additional data.
 
 ```text
 scripts/analyze_epic_contact_lifecycle.py
-906b9a3b1ba2eb691cae413e5a5fb0eb285b999a8a5525e28aaaf8f7a178c065
+1653966ad9ccbdb934f96e45bed45f79d48fcf6e6e05cbed6e6ccd48a2189ec10
 ```

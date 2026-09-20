@@ -32,14 +32,23 @@
     }
   },
   "decision": {
-    "B_full_model_ready": false,
+    "B_full_model_ready_at_official_3mm": false,
     "bimanual_hold_analysis_ready": true,
     "handover_analysis_ready": false,
     "hold_model_labels_ready": true,
     "official_split_video_disjoint": false,
     "onset_model_labels_ready": false,
-    "recommended_action": "limit_to_hold_or_bimanual_analysis",
-    "release_model_labels_ready": false
+    "recommended_action": "build_video_disjoint_strict_contact_protocol",
+    "release_model_labels_ready": false,
+    "strict_contact_1mm_candidate": {
+      "event_labels_ready": true,
+      "requires_new_protocol_and_video_split": true,
+      "test_complete_episode": 100,
+      "train_complete_episode": 1160,
+      "train_hold": 15630,
+      "train_onset": 2100,
+      "train_release": 2132
+    }
   },
   "episode_count": 37162,
   "episodes": {
@@ -143,6 +152,118 @@
     "test_video_count": 29,
     "train_video_count": 124,
     "video_disjoint": false
+  },
+  "threshold_sensitivity": {
+    "0.000500": {
+      "test": {
+        "complete_episode": 275,
+        "hold": 320,
+        "noncontact": 1346,
+        "onset": 378,
+        "onset_only_episode": 103,
+        "release": 382,
+        "release_only_episode": 107,
+        "truncated_episode": 1049
+      },
+      "train": {
+        "complete_episode": 2481,
+        "hold": 2793,
+        "noncontact": 12830,
+        "onset": 3399,
+        "onset_only_episode": 918,
+        "release": 3330,
+        "release_only_episode": 849,
+        "truncated_episode": 7843
+      }
+    },
+    "0.001000": {
+      "test": {
+        "complete_episode": 100,
+        "hold": 1785,
+        "noncontact": 210,
+        "onset": 216,
+        "onset_only_episode": 116,
+        "release": 215,
+        "release_only_episode": 115,
+        "truncated_episode": 3109
+      },
+      "train": {
+        "complete_episode": 1160,
+        "hold": 15630,
+        "noncontact": 2490,
+        "onset": 2100,
+        "onset_only_episode": 940,
+        "release": 2132,
+        "release_only_episode": 972,
+        "truncated_episode": 25128
+      }
+    },
+    "0.001500": {
+      "test": {
+        "complete_episode": 11,
+        "hold": 2294,
+        "noncontact": 44,
+        "onset": 43,
+        "onset_only_episode": 32,
+        "release": 45,
+        "release_only_episode": 34,
+        "truncated_episode": 3732
+      },
+      "train": {
+        "complete_episode": 235,
+        "hold": 20701,
+        "noncontact": 596,
+        "onset": 534,
+        "onset_only_episode": 299,
+        "release": 521,
+        "release_only_episode": 286,
+        "truncated_episode": 31414
+      }
+    },
+    "0.002000": {
+      "test": {
+        "complete_episode": 1,
+        "hold": 2388,
+        "noncontact": 24,
+        "onset": 7,
+        "onset_only_episode": 6,
+        "release": 7,
+        "release_only_episode": 6,
+        "truncated_episode": 3844
+      },
+      "train": {
+        "complete_episode": 66,
+        "hold": 21774,
+        "noncontact": 256,
+        "onset": 163,
+        "onset_only_episode": 97,
+        "release": 159,
+        "release_only_episode": 93,
+        "truncated_episode": 32724
+      }
+    },
+    "0.003000": {
+      "test": {
+        "complete_episode": 0,
+        "hold": 2401,
+        "noncontact": 22,
+        "onset": 1,
+        "onset_only_episode": 1,
+        "release": 2,
+        "release_only_episode": 2,
+        "truncated_episode": 3869
+      },
+      "train": {
+        "complete_episode": 17,
+        "hold": 22149,
+        "noncontact": 133,
+        "onset": 37,
+        "onset_only_episode": 20,
+        "release": 33,
+        "release_only_episode": 16,
+        "truncated_episode": 33204
+      }
+    }
   },
   "transitions": {
     "test": {

@@ -142,6 +142,119 @@ def transition_summary(frames, max_gap_frames):
     return result
 
 
+def contact_observations(frames):
+    groups = defaultdict(list)
+    for row in frames:
+        for hand in ("left", "right"):
+            hand_row = row[hand]
+            if (
+                not hand_row["valid"]
+                or hand_row["clip_id"] is None
+                or hand_row["min_distance_m"] is None
+            ):
+                continue
+            key = (
+                row["split"],
+                row["video_id"],
+                hand_row["clip_id"],
+                hand,
+                hand_row["object_name"],
+            )
+            groups[key].append((
+                row["frame"],
+                float(hand_row["min_distance_m"]),
+            ))
+    return groups
+
+
+def threshold_sensitivity(
+    frames,
+    thresholds,
+    max_gap_frames,
+):
+    groups = contact_observations(frames)
+    result = {}
+    for threshold in thresholds:
+        split_result = {
+            split: {
+                "hold": 0,
+                "release": 0,
+                "onset": 0,
+                "noncontact": 0,
+                "complete_episode": 0,
+                "onset_only_episode": 0,
+                "release_only_episode": 0,
+                "truncated_episode": 0,
+            }
+            for split in ("train", "test")
+        }
+        for key, raw_values in groups.items():
+            split = key[0]
+            values = [
+                (frame, distance <= threshold)
+                for frame, distance in sorted(raw_values)
+            ]
+            segments = []
+            segment = []
+            for item in values:
+                if (
+                    segment
+                    and item[0] - segment[-1][0] > max_gap_frames
+                ):
+                    segments.append(segment)
+                    segment = []
+                segment.append(item)
+            if segment:
+                segments.append(segment)
+
+            for contiguous in segments:
+                for (left_frame, left_contact), (
+                    right_frame,
+                    right_contact,
+                ) in zip(contiguous, contiguous[1:]):
+                    if right_frame - left_frame > max_gap_frames:
+                        continue
+                    if left_contact and right_contact:
+                        split_result[split]["hold"] += 1
+                    elif left_contact and not right_contact:
+                        split_result[split]["release"] += 1
+                    elif not left_contact and right_contact:
+                        split_result[split]["onset"] += 1
+                    else:
+                        split_result[split]["noncontact"] += 1
+
+                index = 0
+                while index < len(contiguous):
+                    if not contiguous[index][1]:
+                        index += 1
+                        continue
+                    end = index
+                    while (
+                        end + 1 < len(contiguous)
+                        and contiguous[end + 1][1]
+                    ):
+                        end += 1
+                    onset_observed = (
+                        index > 0 and not contiguous[index - 1][1]
+                    )
+                    release_observed = (
+                        end + 1 < len(contiguous)
+                        and not contiguous[end + 1][1]
+                    )
+                    if onset_observed and release_observed:
+                        key_name = "complete_episode"
+                    elif onset_observed:
+                        key_name = "onset_only_episode"
+                    elif release_observed:
+                        key_name = "release_only_episode"
+                    else:
+                        key_name = "truncated_episode"
+                    split_result[split][key_name] += 1
+                    index = end + 1
+        result[f"{threshold:.6f}"] = split_result
+    return result
+
+
 def contiguous_runs(frames, max_gap_frames):
     ordered = sorted(frames)
     runs = []
@@ -215,7 +328,13 @@ def video_split_summary(frames):
     }
 
 
-def build_decision(episodes, transitions, bimanual, split):
+def build_decision(
+    episodes,
+    transitions,
+    bimanual,
+    split,
+    sensitivity,
+):
     complete = episodes["all"]["complete_count"]
     train = transitions["train"]
     result = {
@@ -236,19 +355,43 @@ def build_decision(episodes, transitions, bimanual, split):
         ),
         "handover_analysis_ready": False,
     }
-    result["B_full_model_ready"] = all((
+    result["B_full_model_ready_at_official_3mm"] = all((
         result["hold_model_labels_ready"],
         result["onset_model_labels_ready"],
         result["release_model_labels_ready"],
         result["official_split_video_disjoint"],
     ))
+    strict = sensitivity.get("0.001000", {})
+    strict_train = strict.get("train", {})
+    strict_test = strict.get("test", {})
+    result["strict_contact_1mm_candidate"] = {
+        "train_hold": strict_train.get("hold", 0),
+        "train_onset": strict_train.get("onset", 0),
+        "train_release": strict_train.get("release", 0),
+        "train_complete_episode": strict_train.get(
+            "complete_episode",
+            0,
+        ),
+        "test_complete_episode": strict_test.get(
+            "complete_episode",
+            0,
+        ),
+        "event_labels_ready": (
+            strict_train.get("onset", 0) >= 100
+            and strict_train.get("release", 0) >= 100
+            and strict_train.get("complete_episode", 0) >= 50
+        ),
+        "requires_new_protocol_and_video_split": True,
+    }
     result["recommended_action"] = (
         "proceed_with_full_B_model"
-        if result["B_full_model_ready"]
+        if result["B_full_model_ready_at_official_3mm"]
         else (
-            "limit_to_hold_or_bimanual_analysis"
-            if result["hold_model_labels_ready"]
-            else "stop_B_modeling"
+            "build_video_disjoint_strict_contact_protocol"
+            if result["strict_contact_1mm_candidate"][
+                "event_labels_ready"
+            ]
+            else "limit_to_hold_or_bimanual_analysis"
         )
     )
     return result
@@ -262,11 +405,17 @@ def main():
     transitions = transition_summary(frames, args.max_gap_frames)
     bimanual = bimanual_summary(frames, args.max_gap_frames)
     split = video_split_summary(frames)
+    sensitivity = threshold_sensitivity(
+        frames,
+        (0.0005, 0.001, 0.0015, 0.002, 0.003),
+        args.max_gap_frames,
+    )
     decision = build_decision(
         episode_stats,
         transitions,
         bimanual,
         split,
+        sensitivity,
     )
     result = {
         "frame_count": len(frames),
@@ -276,6 +425,7 @@ def main():
         "transitions": transitions,
         "bimanual": bimanual,
         "split": split,
+        "threshold_sensitivity": sensitivity,
         "decision": decision,
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)

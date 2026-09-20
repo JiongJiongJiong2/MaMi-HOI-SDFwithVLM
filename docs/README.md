@@ -21,7 +21,7 @@
 - [EPIC-Contact B manifest test pilot](experiments/epic-contact-b-manifest-test-pilot-2026-09-20.md)：test manifest 已完成；训练 manifest 受内存和传输资源阻断。
 - [EPIC-Contact B manifest result](experiments/epic-contact-b-manifest-2026-09-20.md)：60 GB 实例完成 train/test 全量流式 manifest；57,686 frames、37,162 episodes。
 - [EPIC-Contact lifecycle protocol](experiments/epic-contact-lifecycle-protocol-2026-09-20.md)：B manifest 的 onset/hold/release、双手接触和切分泄漏门槛。
-- [EPIC-Contact lifecycle result](experiments/epic-contact-lifecycle-2026-09-20.md)：hold 充足，但 onset/release 稀疏且视频重叠；完整 B 模型 NO-GO。
+- [EPIC-Contact lifecycle result](experiments/epic-contact-lifecycle-2026-09-20.md)：官方 3 mm lifecycle NO-GO；严格 1 mm 有足够事件，需新协议和视频切分。
 - [Sequence-level contact dataset](experiments/contactopt-sequence-dataset-2026-09-19.md)：404 个序列不重叠连续窗口的冻结清单与覆盖限制。
 - [Sequence ContactOpt and smoothing](experiments/contactopt-sequence-contact-and-temporal-2026-09-19.md)：376 个 train/dev 窗口的原始与五 tap 平滑结果；固定平滑仍为 NO-GO。
 - [E3 hand data gate](experiments/e3-hand-data-gate-2026-09-18.md)：CPU-only finger supervision 和 MANO/SMPL-X 资产审计。

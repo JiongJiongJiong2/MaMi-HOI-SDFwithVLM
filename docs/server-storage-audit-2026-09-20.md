@@ -2,15 +2,17 @@
 
 Date: 2026-09-20
 
-Scope: read-only audit of `/root/autodl-tmp`.
+Scope: audit of `/root/autodl-tmp` followed by one approved cleanup.
 
 ## Capacity
 
 ```text
-/root/autodl-tmp: 50 GB total, 40 GB used, 11 GB available (79%)
+/root/autodl-tmp before cleanup: 50 GB total, 40 GB used, 11 GB available (79%)
+/root/autodl-tmp after cleanup:  50 GB total, 37 GB used, 14 GB available (74%)
 ```
 
-No files were deleted or moved during this audit.
+The cleanup removed only the approved old debug-weight directories listed
+below. No other files were deleted or moved.
 
 ## Largest Directories
 
@@ -64,7 +66,7 @@ U1U_geometry_debug_1step_20260911
 U1U_smoke_300_fp32_candidate_20260911
 ```
 
-Estimated reclaim: approximately `2.6 GB`.
+Measured and reclaimed: `2,687,263,242` bytes, approximately `2.50 GiB`.
 
 These runs are debugging history. The metrics and report JSON should be
 preserved, but the intermediate weights are not the frozen baseline.
@@ -102,6 +104,26 @@ optional second step:       HandX MixData                 ~6.0 GB
 archive first:              ContactOpt optimized pickles   ~10 GB
 ```
 
-The EPIC-Contact B manifest is small and does not require freeing server
-space before construction. Cleanup can proceed independently, but no
-deletion has been performed in this audit.
+The EPIC-Contact B manifest is small and does not require further freeing
+of server space before construction.
+
+## Executed Cleanup
+
+All twelve target paths were checked with `realpath`, confirmed to be
+non-symlink directories under:
+
+```text
+/root/autodl-tmp/mamihoi/outputs/sdf_gate0
+```
+
+Each directory was removed individually. A post-delete check confirmed all
+twelve paths were gone.
+
+```text
+removed:       2,687,263,242 bytes
+filesystem:    40 GB used / 11 GB free -> 37 GB used / 14 GB free
+sdf_gate0:     about 3.0 GB -> 416 MB
+```
+
+The HandX MixData and ContactOpt optimized-pickle cleanup was not
+executed.

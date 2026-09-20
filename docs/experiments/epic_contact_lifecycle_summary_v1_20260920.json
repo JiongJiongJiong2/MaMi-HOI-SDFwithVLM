@@ -1,0 +1,165 @@
+{
+  "bimanual": {
+    "test": {
+      "both_contact_frame_count": 151,
+      "frame_count": 151,
+      "group_count": 6,
+      "run_count": 41,
+      "run_length": {
+        "max": 21.0,
+        "mean": 3.682926829268293,
+        "min": 1.0,
+        "p25": 1.0,
+        "p50": 2.0,
+        "p75": 4.0,
+        "p90": 11.0
+      }
+    },
+    "train": {
+      "both_contact_frame_count": 3756,
+      "frame_count": 3824,
+      "group_count": 90,
+      "run_count": 1809,
+      "run_length": {
+        "max": 30.0,
+        "mean": 2.11387506909895,
+        "min": 1.0,
+        "p25": 1.0,
+        "p50": 1.0,
+        "p75": 2.0,
+        "p90": 3.0
+      }
+    }
+  },
+  "decision": {
+    "B_full_model_ready": false,
+    "bimanual_hold_analysis_ready": true,
+    "handover_analysis_ready": false,
+    "hold_model_labels_ready": true,
+    "official_split_video_disjoint": false,
+    "onset_model_labels_ready": false,
+    "recommended_action": "limit_to_hold_or_bimanual_analysis",
+    "release_model_labels_ready": false
+  },
+  "episode_count": 37162,
+  "episodes": {
+    "all": {
+      "complete_count": 17,
+      "episode_count": 37162
+    },
+    "test": {
+      "by_hand": {
+        "left": 2321,
+        "right": 1551
+      },
+      "by_object": {
+        "bottle": 489,
+        "bowl": 583,
+        "can": 180,
+        "cup": 182,
+        "glass": 421,
+        "mug": 295,
+        "pan": 682,
+        "plate": 904,
+        "saucepan": 136
+      },
+      "complete_contact_frame_count": {},
+      "complete_count": 0,
+      "contact_frame_count": {
+        "max": 30.0,
+        "mean": 1.6200929752066116,
+        "min": 1.0,
+        "p25": 1.0,
+        "p50": 1.0,
+        "p75": 1.0,
+        "p90": 2.0
+      },
+      "episode_count": 3872,
+      "onset_only_count": 1,
+      "release_only_count": 2,
+      "truncated_or_unbounded_count": 3872
+    },
+    "train": {
+      "by_hand": {
+        "left": 20735,
+        "right": 12555
+      },
+      "by_object": {
+        "bottle": 3745,
+        "bowl": 6087,
+        "can": 1479,
+        "cup": 1774,
+        "glass": 2449,
+        "mug": 1887,
+        "pan": 8070,
+        "plate": 6613,
+        "saucepan": 1186
+      },
+      "complete_contact_frame_count": {
+        "max": 12.0,
+        "mean": 2.7058823529411766,
+        "min": 1.0,
+        "p25": 1.0,
+        "p50": 1.0,
+        "p75": 3.0,
+        "p90": 5.800000000000001
+      },
+      "complete_count": 17,
+      "contact_frame_count": {
+        "max": 34.0,
+        "mean": 1.6661459897867228,
+        "min": 1.0,
+        "p25": 1.0,
+        "p50": 1.0,
+        "p75": 1.0,
+        "p90": 2.0
+      },
+      "episode_count": 33290,
+      "onset_only_count": 20,
+      "release_only_count": 16,
+      "truncated_or_unbounded_count": 33273
+    }
+  },
+  "frame_count": 57686,
+  "max_gap_frames": 1,
+  "split": {
+    "overlap_video_count": 14,
+    "overlap_videos": [
+      "P02_12",
+      "P02_130",
+      "P02_132",
+      "P03_101",
+      "P03_112",
+      "P04_04",
+      "P04_110",
+      "P04_24",
+      "P06_108",
+      "P07_110",
+      "P08_17",
+      "P28_13",
+      "P30_101",
+      "P30_107"
+    ],
+    "test_video_count": 29,
+    "train_video_count": 124,
+    "video_disjoint": false
+  },
+  "transitions": {
+    "test": {
+      "adjacent_pairs": 2426,
+      "contact_to_contact": 2401,
+      "contact_to_noncontact": 2,
+      "noncontact_to_contact": 1,
+      "noncontact_to_noncontact": 22,
+      "valid_hand_frames": 6316
+    },
+    "train": {
+      "adjacent_pairs": 22352,
+      "contact_to_contact": 22149,
+      "contact_to_noncontact": 33,
+      "noncontact_to_contact": 37,
+      "noncontact_to_noncontact": 133,
+      "valid_hand_frames": 55923
+    }
+  }
+}

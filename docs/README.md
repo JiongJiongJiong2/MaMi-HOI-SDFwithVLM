@@ -16,6 +16,7 @@
 - [E3 local data gate result](experiments/e3-data-gate-2026-09-20.md)：MaMi 无手指监督、HandX 无物体接触、EPIC-Contact 仅 gated；B/C 均阻断。
 - [EPIC-Contact data gate protocol](experiments/epic-contact-data-gate-protocol-2026-09-20.md)：实际下载 pickle 的接触、释放和交接候选审计。
 - [EPIC-Contact data gate result](experiments/epic-contact-data-gate-2026-09-20.md)：B 有接触 episode 候选；C 无直接左右手切换，EPIC 不支持交接。
+- [Server storage audit](server-storage-audit-2026-09-20.md)：服务器可回收空间、保留项与删除顺序；本轮未删除任何文件。
 - [Sequence-level contact dataset](experiments/contactopt-sequence-dataset-2026-09-19.md)：404 个序列不重叠连续窗口的冻结清单与覆盖限制。
 - [Sequence ContactOpt and smoothing](experiments/contactopt-sequence-contact-and-temporal-2026-09-19.md)：376 个 train/dev 窗口的原始与五 tap 平滑结果；固定平滑仍为 NO-GO。
 - [E3 hand data gate](experiments/e3-hand-data-gate-2026-09-18.md)：CPU-only finger supervision 和 MANO/SMPL-X 资产审计。

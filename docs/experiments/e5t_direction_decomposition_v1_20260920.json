@@ -1,0 +1,173 @@
+{
+  "bootstrap_samples": 5000,
+  "contact_regression_minus_stable": {
+    "near_distance_change_mm": {
+      "ci95": [
+        1.4497310643020922,
+        3.750606649988641
+      ],
+      "mean": 2.6248919062267086
+    },
+    "near_inward_fraction": {
+      "ci95": [
+        -0.16779528167175073,
+        -0.05350671120766871
+      ],
+      "mean": -0.11175488132888806
+    },
+    "near_inward_normal_mm": {
+      "ci95": [
+        -0.03637612916982579,
+        0.458910814496237
+      ],
+      "mean": 0.21764602295756386
+    },
+    "near_outward_fraction": {
+      "ci95": [
+        0.05201899626932177,
+        0.16580443455381655
+      ],
+      "mean": 0.111754881328888
+    },
+    "near_outward_normal_mm": {
+      "ci95": [
+        1.0892838754251941,
+        2.772442374217345
+      ],
+      "mean": 1.983160678936267
+    },
+    "near_signed_normal_mm": {
+      "ci95": [
+        0.8757008789783892,
+        2.6029581197687195
+      ],
+      "mean": 1.7655146559787038
+    },
+    "near_tangential_mm": {
+      "ci95": [
+        0.26735619202305394,
+        3.8987352794524566
+      ],
+      "mean": 1.7852263715590055
+    },
+    "near_total_motion_mm": {
+      "ci95": [
+        1.0996421681527206,
+        5.319532716332288
+      ],
+      "mean": 3.0534093797886124
+    },
+    "near_vertex_count": {
+      "ci95": [
+        30.05157220286374,
+        290.5366285258712
+      ],
+      "mean": 176.29863095238096
+    }
+  },
+  "decision": "GO",
+  "direction_gate": {
+    "criterion": "contact_regression_minus_stable near_signed_normal_mm ci95 lower bound > 0",
+    "pass": true
+  },
+  "groups": {
+    "all": {
+      "near_distance_change_mm": 0.6996928622424027,
+      "near_inward_fraction": 0.4568357633533853,
+      "near_inward_normal_mm": 0.6799779711615207,
+      "near_outward_fraction": 0.5431642366466147,
+      "near_outward_normal_mm": 1.0605748793511744,
+      "near_signed_normal_mm": 0.3805969081896537,
+      "near_tangential_mm": 2.942958598871399,
+      "near_total_motion_mm": 3.666517614605315,
+      "near_vertex_count": 285.6642287234043,
+      "sequence_count": 49,
+      "window_count": 376
+    },
+    "contact_common_failure": {
+      "near_distance_change_mm": 0.9308822443748366,
+      "near_inward_fraction": 0.402947089137442,
+      "near_inward_normal_mm": 0.5617884515549408,
+      "near_outward_fraction": 0.5970529108625581,
+      "near_outward_normal_mm": 1.280521816132345,
+      "near_signed_normal_mm": 0.7187333645774042,
+      "near_tangential_mm": 2.79513544024396,
+      "near_total_motion_mm": 3.5943207588652855,
+      "near_vertex_count": 338.5625,
+      "sequence_count": 8,
+      "window_count": 14
+    },
+    "contact_gain": {
+      "near_distance_change_mm": null,
+      "near_inward_fraction": null,
+      "near_inward_normal_mm": null,
+      "near_outward_fraction": null,
+      "near_outward_normal_mm": null,
+      "near_signed_normal_mm": null,
+      "near_tangential_mm": null,
+      "near_total_motion_mm": null,
+      "near_vertex_count": null,
+      "sequence_count": 0,
+      "window_count": 0
+    },
+    "contact_regression": {
+      "near_distance_change_mm": 3.2276190457161773,
+      "near_inward_fraction": 0.35070458298435264,
+      "near_inward_normal_mm": 0.8942473844374152,
+      "near_outward_fraction": 0.6492954170156473,
+      "near_outward_normal_mm": 2.968938694790862,
+      "near_signed_normal_mm": 2.074691310353447,
+      "near_tangential_mm": 4.672594120608654,
+      "near_total_motion_mm": 6.618712988947833,
+      "near_vertex_count": 454.0729166666667,
+      "sequence_count": 10,
+      "window_count": 12
+    },
+    "contact_stable": {
+      "near_distance_change_mm": 0.6027271394894689,
+      "near_inward_fraction": 0.4624594643132407,
+      "near_inward_normal_mm": 0.6766013614798514,
+      "near_outward_fraction": 0.5375405356867593,
+      "near_outward_normal_mm": 0.9857780158545948,
+      "near_signed_normal_mm": 0.3091766543747432,
+      "near_tangential_mm": 2.8873677490496483,
+      "near_total_motion_mm": 3.565303609159221,
+      "near_vertex_count": 277.7742857142857,
+      "sequence_count": 49,
+      "window_count": 350
+    },
+    "e5_contact_pass": {
+      "near_distance_change_mm": 0.6918438400095115,
+      "near_inward_fraction": 0.45866531710763025,
+      "near_inward_normal_mm": 0.6839905783086577,
+      "near_outward_fraction": 0.5413346828923697,
+      "near_outward_normal_mm": 1.0531075450777394,
+      "near_signed_normal_mm": 0.36911696676908196,
+      "near_tangential_mm": 2.9479772863556644,
+      "near_total_motion_mm": 3.668968742423649,
+      "near_vertex_count": 283.61843922651934,
+      "sequence_count": 49,
+      "window_count": 362
+    }
+  },
+  "implementation_sha256": "2b68b895ec77d037ff451274cf07b5785d6c72a93fce8fcdb5c43e5e6d34548c",
+  "inputs": {
+    "batch_summary": "/root/autodl-tmp/contact_action_20260914/sequence_contactopt_v1_20260919/cases/batch_summary.json",
+    "batch_summary_sha256": "cb0785954c7f04c4ee0dbee97ecab008f1b38c3e2ff61e7f21dd3c1b219bd07e8",
+    "e5_result": "/root/autodl-tmp/contact_action_20260914/e5_solver_v1_20260919/result.json",
+    "e5_result_sha256": "4c218fc51073870f46420321d07216935ed13d8f1e9cf16abf6af5ccf5fce734b",
+    "e5t_result": "/root/autodl-tmp/contact_action_20260914/e5t_solver_v1_20260919/result.json",
+    "e5t_result_sha256": "46714e9460bb4d924745ef4dc66652c8e29c0789bcf94637bdebd33fa91bcb30d",
+    "geometry_dir": "/root/autodl-tmp/contact_action_20260914/sequence_contactopt_v1_20260919/geometry"
+  },
+  "mano_reconstruction_max_error_m": 2.384185791015625e-07,
+  "method": "re-run MANO from frozen E5/E5-T poses; decompose each hand-vertex displacement using the unit vector from the nearest ContactOpt object vertex at E5",
+  "near_threshold_m": 0.02,
+  "seed": 20260920,
+  "splits": [
+    "dev",
+    "train"
+  ],
+  "test_split": "untouched",
+  "window_count": 376
+}

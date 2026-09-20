@@ -1,0 +1,114 @@
+{
+  "bootstrap_samples": 5000,
+  "decision": "NO-GO",
+  "dev": {
+    "combined_pass_count": 112,
+    "contact_pass_count": 117,
+    "e5_combined_pass_count": 107,
+    "e5_contact_pass_count": 117,
+    "e5t_combined_pass_count": 110,
+    "e5t_contact_pass_count": 114,
+    "oracle_combined_pass_count": 114,
+    "selected_e5_count": 9,
+    "selected_minus_e5t_combined": {
+      "ci95": [
+        -2,
+        7
+      ],
+      "mean": 2
+    },
+    "window_count": 120
+  },
+  "feature": "near_outward_fraction",
+  "fitted": {
+    "maximum_train_selection_count": 20,
+    "objective": 233.25,
+    "threshold": 0.6661904752452155,
+    "train_stats": {
+      "combined_pass_count": 234,
+      "contact_pass_count": 239,
+      "selected_e5_count": 15,
+      "window_count": 256
+    }
+  },
+  "gate": {
+    "dev_combined_ci_lower_positive": false,
+    "dev_combined_gain_over_e5t": true,
+    "dev_contact_not_below_e5t": true,
+    "pass": false,
+    "train_combined_gain_over_e5t": true
+  },
+  "implementation_sha256": "392b05503fa97c1d1e58cd5a4a86cdeb2712e057a9c37b9b7da9bc2412a01bda",
+  "inputs": {
+    "direction_summary": "/root/autodl-tmp/contact_action_20260914/e5t_direction_decomposition_v1_20260920/summary.json",
+    "direction_summary_sha256": "93723672930b8264318b0f0da99ba67a2cc9ede71b639e00d5f64fe9038d4408f",
+    "e5_result": "/root/autodl-tmp/contact_action_20260914/e5_solver_v1_20260919/result.json",
+    "e5_result_sha256": "4c218fc51073870f46420321d07216935ed13d8f1e9cf16abf6af5ccf5fce734b",
+    "e5t_result": "/root/autodl-tmp/contact_action_20260914/e5t_solver_v1_20260919/result.json",
+    "e5t_result_sha256": "46714e9460bb4d924745ef4dc66652c8e29c0789bcf94637bdebd33fa91bcb30d"
+  },
+  "leave_one_object_out_train": {
+    "combined_pass_count": 233,
+    "contact_pass_count": 238,
+    "fold_count": 8,
+    "selected_e5_count": 15,
+    "window_count": 256,
+    "folds": [
+      {
+        "object_name": "clothesstand",
+        "threshold": 0.6661904752452155
+      },
+      {
+        "object_name": "floorlamp",
+        "threshold": 0.6661904752452155
+      },
+      {
+        "object_name": "largebox",
+        "threshold": 0.6635590433579841
+      },
+      {
+        "object_name": "largetable",
+        "threshold": 0.6661904752452155
+      },
+      {
+        "object_name": "plasticbox",
+        "threshold": 0.6661904752452155
+      },
+      {
+        "object_name": "smallbox",
+        "threshold": 0.6661904752452155
+      },
+      {
+        "object_name": "trashcan",
+        "threshold": 0.6731422037245266
+      },
+      {
+        "object_name": "whitechair",
+        "threshold": 0.6661904752452155
+      }
+    ]
+  },
+  "maximum_train_selection_fraction": 0.08,
+  "method": "use E5 contact-pass windows; select E5 when the train-fitted near outward-vertex fraction exceeds a threshold, otherwise select E5-T",
+  "selection_penalty": 0.05,
+  "test_split": "untouched",
+  "testing_note": "the dev split was inspected during the direction pilot; this is a locked-threshold confirmation, not a pristine final test",
+  "train": {
+    "combined_pass_count": 234,
+    "contact_pass_count": 239,
+    "e5_combined_pass_count": 236,
+    "e5_contact_pass_count": 245,
+    "e5t_combined_pass_count": 231,
+    "e5t_contact_pass_count": 236,
+    "oracle_combined_pass_count": 240,
+    "selected_e5_count": 15,
+    "selected_minus_e5t_combined": {
+      "ci95": [
+        0,
+        7
+      ],
+      "mean": 3
+    },
+    "window_count": 256
+  }
+}

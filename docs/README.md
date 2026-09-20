@@ -12,6 +12,8 @@
 - [E5-T update direction result](experiments/contactopt-e5t-direction-decomposition-2026-09-20.md)：接触回归与向外交付方向分解；GO，但方向与幅度未分离。
 - [E5-T direction gate protocol](experiments/contactopt-e5t-direction-gate-protocol-2026-09-20.md)：方向风险的 train-only 离散门控协议。
 - [E5-T direction gate result](experiments/contactopt-e5t-direction-gate-2026-09-20.md)：离散方向门控 NO-GO；增益不显著，停止在现有 dev 上调参。
+- [E3 local data gate protocol](experiments/e3-data-gate-protocol-2026-09-20.md)：B 接触记忆与 C 交接研究的本地数据门。
+- [E3 local data gate result](experiments/e3-data-gate-2026-09-20.md)：MaMi 无手指监督、HandX 无物体接触、EPIC-Contact 仅 gated；B/C 均阻断。
 - [Sequence-level contact dataset](experiments/contactopt-sequence-dataset-2026-09-19.md)：404 个序列不重叠连续窗口的冻结清单与覆盖限制。
 - [Sequence ContactOpt and smoothing](experiments/contactopt-sequence-contact-and-temporal-2026-09-19.md)：376 个 train/dev 窗口的原始与五 tap 平滑结果；固定平滑仍为 NO-GO。
 - [E3 hand data gate](experiments/e3-hand-data-gate-2026-09-18.md)：CPU-only finger supervision 和 MANO/SMPL-X 资产审计。

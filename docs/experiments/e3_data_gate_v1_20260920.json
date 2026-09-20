@@ -1,0 +1,138 @@
+{
+  "decision": {
+    "complete_event_data_local": "blocked",
+    "contact_memory_b_gate": "blocked_missing_local_event_data",
+    "current_action": "acquire_and_audit_event_data_before_modeling",
+    "future_handover_c_gate": "blocked_missing_local_event_data",
+    "raw_finger_supervision": "pass"
+  },
+  "handx_mixdata": {
+    "available": true,
+    "has_bimanual_motion": true,
+    "has_contact_labels": false,
+    "has_object_mesh": false,
+    "has_object_state": false,
+    "has_release_labels": false,
+    "interaction_annotations_are_hand_hand": true,
+    "source_counts": {
+      "test": {
+        "ARCTIC": 207,
+        "Gigahands": 695,
+        "H2O": 88,
+        "HOT3D": 80,
+        "HandX": 44,
+        "HoloAssist": 8829
+      },
+      "train": {
+        "ARCTIC": 1699,
+        "Gigahands": 3943,
+        "H2O": 763,
+        "HOT3D": 704,
+        "HandX": 473,
+        "HoloAssist": 79609
+      }
+    },
+    "source_release_sha256": "c6361e5d783ba82a79ed2fd585880f7b9237fef532adfd9d6721d191d633ce777",
+    "test_mano": {
+      "first_sample_keys": [
+        "left_shape",
+        "right_shape",
+        "left_pose",
+        "right_pose",
+        "left_trans",
+        "right_trans"
+      ],
+      "first_sample_shapes": {
+        "left_pose": [
+          60,
+          48
+        ],
+        "left_shape": [
+          60,
+          10
+        ],
+        "left_trans": [
+          60,
+          3
+        ],
+        "right_pose": [
+          60,
+          48
+        ],
+        "right_shape": [
+          60,
+          10
+        ],
+        "right_trans": [
+          60,
+          3
+        ]
+      },
+      "sample_count": 9648,
+      "size": 289379914
+    },
+    "train_motion": {
+      "first_sample_keys": [
+        "motion",
+        "left_annotation",
+        "right_annotation",
+        "interaction_annotation"
+      ],
+      "first_sample_shapes": {
+        "motion": [
+          60,
+          2,
+          21,
+          3
+        ]
+      },
+      "sample_count": 84729,
+      "size": 5448173665
+    }
+  },
+  "hopformer_epic": {
+    "arctic_data_present": false,
+    "dataset_access": "gated",
+    "epic_data_present": false,
+    "epic_schema_tokens_found": [
+      "dist.or",
+      "dist.ro",
+      "idx.or",
+      "idx.ro",
+      "left_valid",
+      "object.v.cam",
+      "right_valid"
+    ],
+    "license_family": "CC-BY-NC-4.0",
+    "license_sha256": "b2aedf5f0fa96673642e6d65e56ecc066115f96a64b74b6a586a25a2094ca399c",
+    "readme_sha256": "4734e6706c7bf16407e7d01dc1983a613304d8a98e3b9b80a0867f2575479911b",
+    "reported_epic_scale": "2.3K clips / 62.3K frames",
+    "repository_available": true,
+    "repository_commit": "bcb114776419ec044634e8587bfb6381d6c45b63"
+  },
+  "implementation_sha256": "33e934789e621f495a3a3b28c4a0b6183ae44a3af468e6f75b7e1ace873e64aa",
+  "mamihoi": {
+    "available": true,
+    "has_object_pose": true,
+    "has_pose_body": true,
+    "has_pose_hand": false,
+    "sequence_count": 602,
+    "sequence_keys": [
+      "betas",
+      "gender",
+      "obj_com_pos",
+      "obj_rot",
+      "obj_scale",
+      "obj_trans",
+      "pose_body",
+      "rest_offsets",
+      "root_orient",
+      "seq_name",
+      "trans",
+      "trans2joint"
+    ],
+    "size": 61113461
+  },
+  "scope": "local read-only audit; no gated dataset download and no test split access",
+  "test_split": "untouched"
+}

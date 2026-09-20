@@ -1,0 +1,42 @@
+{
+  "contact_threshold_m": 0.003,
+  "counts": {
+    "episodes": 3872,
+    "merged_frames": 6165,
+    "records": {
+      "test_records": 6316
+    },
+    "same_object_bimanual_frames": 151,
+    "same_object_both_contact_frames": 151
+  },
+  "episode_observation_counts": {
+    "test:onset=False:release=False": 3869,
+    "test:onset=False:release=True": 2,
+    "test:onset=True:release=False": 1
+  },
+  "max_gap_frames": 1,
+  "memo_window": 500,
+  "outputs": {
+    "episodes": {
+      "path": "C:\\Users\\\u4f55\u70af\u4e50\\Documents\\HOI\u9879\u76ee\\epic_b_manifest_test_window500c\\epic_contact_episodes_v1.jsonl.gz",
+      "rows": 3872,
+      "sha256": "f350d9fe9f62352e52db7b154a0db1f1bcde2e6994118238bd950caf2da98a3b",
+      "size": 82384
+    },
+    "frames": {
+      "path": "C:\\Users\\\u4f55\u70af\u4e50\\Documents\\HOI\u9879\u76ee\\epic_b_manifest_test_window500c\\epic_contact_frames_v1.jsonl.gz",
+      "rows": 6165,
+      "sha256": "d6fe0dc517e5a749e2a20c49113ba3295854ff38188ec6cf67ebf8b59777a7d9",
+      "size": 111304
+    }
+  },
+  "sources": {
+    "test": {
+      "path": "E:\\HOI\\TMP\\hopformer_repro_pkls\\training_pkls\\epic_contact_v3_01-06-26_parallel_test_20260611.pkl",
+      "records_processed": 6316,
+      "sha256": "35df2fea120b3676dc13d6b2d5a7c215c4e11b06ed35e102de7cda08d74456a4",
+      "size": 807342721
+    }
+  },
+  "trim_memo": true
+}

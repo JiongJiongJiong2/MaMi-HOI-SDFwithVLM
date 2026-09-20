@@ -99,16 +99,17 @@ episodes rows:  37,162
 
 ```text
 B manifest:                    GO
-complete onset-release pairs:  34
+complete onset-release pairs:  17
 truncated boundary episodes:  37,128
 C handover benchmark:          still NO-GO
 ```
 
 The manifest is ready for contact-lifecycle analysis and model code. The
-small number of complete train onset-release pairs means release-specific
-claims should use a separately defined transition dataset or a different
-data source. The 3,907 simultaneous-contact frames remain bimanual support
-evidence, not handover evidence.
+complete onset-release pair count is `17` in train and `0` in test. This
+small number means release-specific claims should use a separately defined
+transition dataset or a different data source. The 3,907
+simultaneous-contact frames remain bimanual support evidence, not handover
+evidence.
 
 ## Implementation Hash
 

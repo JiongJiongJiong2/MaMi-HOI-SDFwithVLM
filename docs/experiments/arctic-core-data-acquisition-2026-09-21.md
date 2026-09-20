@@ -108,12 +108,49 @@ object_meta.json
 The split package contains the official `protocol_p1.json` and
 `protocol_p2.json`.
 
+## Runtime Body Models
+
+Existing server body models were reused instead of downloading another
+copy:
+
+```text
+/root/autodl-tmp/mamihoi/data/processed_data/smpl_all_models/mano
+/root/autodl-tmp/mamihoi/data/processed_data/smpl_all_models/smplx
+```
+
+A symlink-only runtime layout was added for the standard `smplx`
+package:
+
+```text
+/root/autodl-tmp/arctic_runtime/body_models/mano
+/root/autodl-tmp/arctic_runtime/body_models/smplx
+```
+
+The runtime environment already contains:
+
+```text
+python:     /root/autodl-tmp/external/handx-venv/bin/python
+torch:      2.1.2+cu118
+numpy:      1.23.5
+trimesh:    5.1.0
+smplx:      importable
+```
+
+Smoke loading succeeded:
+
+```text
+MANO left vertices:   778
+MANO right vertices:  778
+SMPL-X vertices:   10,475
+```
+
 ## Boundary
 
 ARCTIC raw annotations do not contain explicit contact, release, or
 handover labels. Contact and role-switch events must be derived from
 hand/object geometry.
 
-SMPL-X and MANO body-model files are not yet present on the server.
-They are required before mesh-based hand-object contact audit. No images
-are needed for the first geometry-only gate.
+No core data is missing for the first geometry-only gate. Object
+templates, subject templates, MANO/SMPL-X models, raw trajectories, and
+official splits are all available on the server. Images are excluded
+from this acquisition and are not needed for the first gate.

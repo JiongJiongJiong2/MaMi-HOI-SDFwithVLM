@@ -31,9 +31,11 @@
   - Frozen promotion gate is NO-GO.
 
 ### Phase 4: Result, Decision, and Commit
-- **Status:** in_progress
+- **Status:** complete
 - Actions taken:
   - Created the result report and compact summary.
+  - Committed the frozen C0-R1 result as
+    `3f37cb9 test(data): reject OakInk oracle future reranking`.
 
 ## Errors Encountered
 

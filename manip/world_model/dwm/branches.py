@@ -15,6 +15,13 @@ from .config import ACTION_DIM
 
 
 HORIZON = 8
+PROBE_HORIZON = 4
+FIXED_PROBE_SEQUENCE = (
+    "push_x+",
+    "lift",
+    "push_y+",
+    "lower",
+)
 BRANCH_NAMES = (
     "hold",
     "close",
@@ -180,3 +187,73 @@ def make_action_branches(env, seed=20260922):
     if tuple(actions) != BRANCH_NAMES:
         raise ValueError("branch order does not match frozen names")
     return actions
+
+
+def make_probe_sequences(actions, seed):
+    """Return nested fixed and random probe rows for one reset."""
+
+    if tuple(actions) != BRANCH_NAMES:
+        raise ValueError("probe source actions do not match frozen branches")
+    fixed = np.stack([
+        np.asarray(actions[name], dtype=np.float32)[0]
+        for name in FIXED_PROBE_SEQUENCE
+    ])
+    rng = np.random.default_rng(seed)
+    for _ in range(16):
+        names = tuple(rng.choice(
+            BRANCH_NAMES,
+            size=PROBE_HORIZON,
+            replace=False,
+        ).tolist())
+        random = np.stack([
+            np.asarray(actions[name], dtype=np.float32)[0]
+            for name in names
+        ])
+        if not np.array_equal(random, fixed):
+            return fixed, random
+    raise RuntimeError("failed to generate a random probe distinct from fixed")
+
+
+def make_target_action(env, seed, candidate_actions=None):
+    """Generate a deterministic target action outside the candidate family."""
+
+    if mujoco is None:
+        raise RuntimeError("mujoco is required")
+    base = env.position_targets().astype(np.float64)
+    signs = calibrate_flexion_signs(env)
+    rng = np.random.default_rng(seed)
+    residual = np.zeros((HORIZON, ACTION_DIM), dtype=np.float64)
+    residual[:, :3] = _smooth_residual(
+        HORIZON,
+        rng,
+        scale=0.006,
+        size=3,
+    )
+    residual[:, 3:6] = _smooth_residual(
+        HORIZON,
+        rng,
+        scale=0.03,
+        size=3,
+    )
+    residual[:, 6:] = (
+        _smooth_residual(
+            HORIZON,
+            rng,
+            scale=0.10,
+            size=ACTION_DIM - 6,
+        )
+        * signs[6:][None]
+    )
+    target = base[None] + residual
+    candidates = (
+        make_action_branches(env, seed=seed + 1)
+        if candidate_actions is None
+        else candidate_actions
+    )
+    closest = min(
+        float(np.max(np.abs(target - candidate)))
+        for candidate in candidates.values()
+    )
+    if closest <= 1e-7:
+        raise ValueError("target action overlaps a candidate action")
+    return target.astype(np.float32)

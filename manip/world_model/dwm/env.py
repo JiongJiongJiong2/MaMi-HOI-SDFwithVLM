@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import copy
 import hashlib
+from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 
@@ -52,6 +55,17 @@ CONTACT_BODY_NAMES = (
     "R_Thumb2",
     "R_Thumb3",
 )
+
+
+@dataclass(frozen=True)
+class DWMCheckpoint:
+    """Restorable MuJoCo state and contact bookkeeping."""
+
+    object_id: str
+    data: Any
+    contact_seen: bool
+    initial_contact: bool
+    last_reset_id: int | None
 
 
 def _require_mujoco():
@@ -429,6 +443,35 @@ class DWMSimEnv:
             finger_velocities=finger_velocities.astype(np.float32),
             contact_forces=contact_forces.astype(np.float32),
         )
+
+    def checkpoint(self):
+        """Capture the complete runtime state needed for a branch rollout."""
+
+        _require_mujoco()
+        saved = copy.deepcopy(self.data)
+        return DWMCheckpoint(
+            object_id=self.config.object_id,
+            data=saved,
+            contact_seen=bool(self._contact_seen),
+            initial_contact=bool(self._initial_contact),
+            last_reset_id=self._last_reset_id,
+        )
+
+    def restore(self, checkpoint):
+        """Restore a checkpoint captured from this object configuration."""
+
+        _require_mujoco()
+        if not isinstance(checkpoint, DWMCheckpoint):
+            raise TypeError("checkpoint must be a DWMCheckpoint")
+        if checkpoint.object_id != self.config.object_id:
+            raise ValueError(
+                "checkpoint object does not match environment object"
+            )
+        self.data = copy.deepcopy(checkpoint.data)
+        self._contact_seen = bool(checkpoint.contact_seen)
+        self._initial_contact = bool(checkpoint.initial_contact)
+        self._last_reset_id = checkpoint.last_reset_id
+        return self.snapshot()
 
     def contact_mode(self):
         active = self._contact_is_active()

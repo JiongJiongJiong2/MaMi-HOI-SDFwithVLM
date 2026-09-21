@@ -49,6 +49,27 @@ class DWMEnvironmentTest(unittest.TestCase):
             0.0,
         )
 
+    def test_checkpoint_restore_reproduces_branch(self):
+        env = self.env_class(self.config)
+        env.reset(reset_id=7)
+        targets = env.position_targets()
+        probe = np.repeat(targets[None], 2, axis=0)
+        probe[0, 0] += 0.010
+        env.rollout(probe)
+        checkpoint = env.checkpoint()
+        action = np.repeat(targets[None], 3, axis=0)
+        action[:, 1] += 0.008
+
+        first_states = env.rollout(action)
+        first_mode = env.contact_mode_index
+        env.restore(checkpoint)
+        second_states = env.rollout(action)
+        second_mode = env.contact_mode_index
+
+        for first, second in zip(first_states, second_states):
+            np.testing.assert_array_equal(first.vector, second.vector)
+        self.assertEqual(first_mode, second_mode)
+
 
 if __name__ == "__main__":
     unittest.main()

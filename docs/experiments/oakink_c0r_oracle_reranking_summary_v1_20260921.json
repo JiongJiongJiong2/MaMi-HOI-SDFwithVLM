@@ -1,0 +1,42 @@
+{
+  "candidate_count_summary": {
+    "max": 2,
+    "mean": 2.0,
+    "min": 2
+  },
+  "checks": {
+    "correct_beats_shuffled_ci": true,
+    "eligible_events_ge_40": true,
+    "secondary_direction_consistent": false,
+    "selection_change_rate_ge_0_25": false,
+    "top1_observed_rate_not_dropped": true
+  },
+  "correct_minus_shuffled_evaluation": {
+    "draws": 2000,
+    "lower": 0.006083471299765114,
+    "mean": 0.05805691222573817,
+    "upper": 0.12886087323939058
+  },
+  "eligible_events": 54,
+  "overall": false,
+  "selection_change_rate": 0.14814814814814814,
+  "sensitivity": {
+    "0.25": {
+      "correct_minus_shuffled_mean": 0.0,
+      "selection_change_rate": 0.0
+    },
+    "0.50": {
+      "correct_minus_shuffled_mean": 0.05805691222573817,
+      "selection_change_rate": 0.14814814814814814
+    },
+    "1.00": {
+      "correct_minus_shuffled_mean": 0.053853100806595715,
+      "selection_change_rate": 0.2962962962962963
+    }
+  },
+  "top1_observed_rate": {
+    "correct": 0.6111111111111112,
+    "no_future": 0.5,
+    "shuffled": 0.3888888888888889
+  }
+}

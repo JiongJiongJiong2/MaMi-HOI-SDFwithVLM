@@ -43,11 +43,11 @@ Phase 1
 - **Status:** complete
 
 ### Phase 4: Local Run, Server Verification, and Decision
-- [ ] Run the full C0 dataset builder locally
+- [x] Run the full C0 dataset builder locally
 - [x] Reproduce the feasibility audit on the no-card server
-- [ ] Commit the protocol, code, tests, compact report, and hashes
+- [x] Commit the protocol, code, tests, compact report, and hashes
 - [x] Decide GO, CONDITIONAL, or NO-GO for the oracle optimization stage
-- **Status:** in_progress
+- **Status:** complete
 
 ## Immediate Data Need
 

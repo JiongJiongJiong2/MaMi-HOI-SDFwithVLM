@@ -49,7 +49,7 @@
   - All C0 data gates pass.
 
 ### Phase 4: Local Run, Server Verification, and Decision
-- **Status:** in_progress
+- **Status:** complete
 - Actions taken:
   - Completed the full local event extraction.
   - Uploaded the compact dataset and scripts to the server.
@@ -59,6 +59,8 @@
   - C0 data feasibility is GO.
   - The oracle optimization stage is authorized, but no causal claim is
     supported yet.
+- Commit:
+  - `b02b6ed test(data): validate OakInk C0 future-conditioning data`
 
 ## Errors Encountered
 

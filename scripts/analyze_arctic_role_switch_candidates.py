@@ -6,15 +6,23 @@ from __future__ import annotations
 import argparse
 import gzip
 import json
+import sys
 from collections import defaultdict
 from pathlib import Path
 
 import numpy as np
 
-from scripts.audit_arctic_handover_gate import (
-    binary_segments,
-    stable_contact,
-)
+try:
+    from scripts.audit_arctic_handover_gate import (
+        binary_segments,
+        stable_contact,
+    )
+except ModuleNotFoundError:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from audit_arctic_handover_gate import (  # noqa: E402
+        binary_segments,
+        stable_contact,
+    )
 
 
 def parse_args():

@@ -25,12 +25,37 @@ class ArcticMotionFeatureStabilityTest(unittest.TestCase):
         self.assertEqual(selected.shape, (2, 30 * 6))
 
     def test_balanced_group_folds_are_disjoint(self):
-        participants = np.asarray(["a"] * 4 + ["b"] * 3 + ["c"] * 2)
-        labels = np.asarray([1, 0, 1, 0, 0, 0, 1, 1, 0])
-        folds = balanced_group_folds(participants, labels, 2, 7)
+        groups = [f"g{index}" for index in range(8)]
+        participants = np.asarray(
+            [group for group in groups for _ in range(3)]
+        )
+        labels = np.asarray(
+            [1, 0, 0] * len(groups)
+        )
+        folds = balanced_group_folds(participants, labels, 4, 7)
         for fit_indices, score_indices in folds:
             self.assertFalse(set(fit_indices) & set(score_indices))
             self.assertEqual(len(fit_indices) + len(score_indices), len(labels))
+
+    def test_fold_assignment_changes_with_seed(self):
+        groups = [f"g{index}" for index in range(8)]
+        participants = np.asarray(
+            [group for group in groups for _ in range(3)]
+        )
+        labels = np.asarray(
+            [1, 0, 0] * len(groups)
+        )
+        first = balanced_group_folds(participants, labels, 4, 1)
+        second = balanced_group_folds(participants, labels, 4, 2)
+        first_partition = {
+            tuple(sorted(participants[indices].tolist()))
+            for _, indices in first
+        }
+        second_partition = {
+            tuple(sorted(participants[indices].tolist()))
+            for _, indices in second
+        }
+        self.assertNotEqual(first_partition, second_partition)
 
     def test_expected_calibration_error(self):
         labels = np.asarray([0, 0, 1, 1])

@@ -77,9 +77,6 @@ def balanced_group_folds(participants, labels, folds, seed):
     rng = np.random.default_rng(seed)
     groups = np.asarray(sorted(set(participants)))
     rng.shuffle(groups)
-    random_order = {
-        group: index for index, group in enumerate(groups)
-    }
     positive_count = {
         group: int(labels[participants == group].sum())
         for group in groups
@@ -88,18 +85,10 @@ def balanced_group_folds(participants, labels, folds, seed):
         group: int((participants == group).sum())
         for group in groups
     }
-    order = sorted(
-        groups,
-        key=lambda group: (
-            -positive_count[group],
-            -sample_count[group],
-            random_order[group],
-        ),
-    )
     fold_positive = [0] * folds
     fold_samples = [0] * folds
     assignment = {}
-    for group in order:
+    for group in groups:
         fold = min(
             range(folds),
             key=lambda index: (

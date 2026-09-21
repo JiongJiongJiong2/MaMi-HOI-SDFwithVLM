@@ -287,6 +287,36 @@ def write_jsonl_gzip(path, rows):
             handle.write(json.dumps(row, sort_keys=True) + "\n")
 
 
+def write_trajectories(path, records):
+    maximum_length = max(
+        len(row["giver_distance_m"]) for row in records
+    )
+    count = len(records)
+    giver = np.full((count, maximum_length), np.nan, dtype=np.float32)
+    receiver = np.full((count, maximum_length), np.nan, dtype=np.float32)
+    lengths = np.zeros(count, dtype=np.int32)
+    for index, row in enumerate(records):
+        length = len(row["giver_distance_m"])
+        lengths[index] = length
+        giver[index, :length] = row["giver_distance_m"]
+        receiver[index, :length] = row["receiver_distance_m"]
+    np.savez_compressed(
+        path,
+        sequences=np.asarray([row["sequence"] for row in records]),
+        splits=np.asarray([row["split"] for row in records]),
+        participant_pairs=np.asarray([
+            row["participant_pair"] for row in records
+        ]),
+        object_ids=np.asarray([row["object_id"] for row in records]),
+        object_names=np.asarray([
+            row["object_name"] for row in records
+        ]),
+        lengths=lengths,
+        giver_distance_m=giver,
+        receiver_distance_m=receiver,
+    )
+
+
 def main():
     args = parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
@@ -484,23 +514,9 @@ def main():
         json.dumps(result, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
-    np.savez_compressed(
+    write_trajectories(
         args.output_dir / "handover_trajectories.npz",
-        sequences=np.asarray([row["sequence"] for row in records]),
-        splits=np.asarray([row["split"] for row in records]),
-        participant_pairs=np.asarray([
-            row["participant_pair"] for row in records
-        ]),
-        object_ids=np.asarray([row["object_id"] for row in records]),
-        object_names=np.asarray([
-            row["object_name"] for row in records
-        ]),
-        giver_distance_m=np.asarray([
-            row["giver_distance_m"] for row in records
-        ], dtype=object),
-        receiver_distance_m=np.asarray([
-            row["receiver_distance_m"] for row in records
-        ], dtype=object),
+        records,
     )
     write_jsonl_gzip(
         args.output_dir / "role_switch_candidates.jsonl.gz",

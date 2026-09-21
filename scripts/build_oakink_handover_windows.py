@@ -129,8 +129,11 @@ def main():
         split = str(arrays["splits"][index])
         participant_pair = str(arrays["participant_pairs"][index])
         object_name = str(arrays["object_names"][index])
-        giver = np.asarray(arrays["giver_distance_m"][index])
-        receiver = np.asarray(arrays["receiver_distance_m"][index])
+        length = int(arrays["lengths"][index])
+        giver = np.asarray(arrays["giver_distance_m"][index, :length])
+        receiver = np.asarray(
+            arrays["receiver_distance_m"][index, :length]
+        )
         event = primary_events.get(sequence)
         release = int(event["giver_release"]) if event else None
         for frame in range(1, len(giver)):

@@ -8,6 +8,7 @@ from scripts.build_oakink_handover_manifest import (
     parse_sequence,
     role_switch_event,
     split_for_subjects,
+    write_trajectories,
 )
 
 
@@ -64,6 +65,40 @@ class OakInkHandoverManifestTest(unittest.TestCase):
             vertices,
             [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]],
         )
+
+    def test_write_trajectories_is_portable_and_padded(self):
+        import tempfile
+
+        records = [
+            {
+                "sequence": "s1",
+                "split": "train",
+                "participant_pair": "a->b",
+                "object_id": "O1",
+                "object_name": "obj",
+                "giver_distance_m": np.asarray([0.1, 0.2]),
+                "receiver_distance_m": np.asarray([0.3, 0.4]),
+            },
+            {
+                "sequence": "s2",
+                "split": "val",
+                "participant_pair": "c->d",
+                "object_id": "O2",
+                "object_name": "obj2",
+                "giver_distance_m": np.asarray([0.5]),
+                "receiver_distance_m": np.asarray([0.6]),
+            },
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            path = f"{directory}/trajectories.npz"
+            write_trajectories(path, records)
+            arrays = np.load(path, allow_pickle=False)
+            try:
+                self.assertEqual(arrays["giver_distance_m"].shape, (2, 2))
+                self.assertTrue(np.isnan(arrays["giver_distance_m"][1, 1]))
+                np.testing.assert_array_equal(arrays["lengths"], [2, 1])
+            finally:
+                arrays.close()
 
 
 if __name__ == "__main__":

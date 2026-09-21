@@ -93,16 +93,12 @@ def probe_seed(base_seed, config, reset_id, mode):
     ]).generate_state(1, dtype=np.uint32)[0])
 
 
-def target_seed(base_seed, config, reset_id, mode, length):
-    mode_offset = 0 if mode == "none" else (
-        1 if mode == "fixed" else 2
-    )
+def target_seed(base_seed, config, reset_id):
     return int(np.random.SeedSequence([
         int(base_seed),
         object_index(config),
         int(reset_id),
-        1000 + mode_offset,
-        int(length),
+        1000,
     ]).generate_state(1, dtype=np.uint32)[0])
 
 
@@ -146,7 +142,7 @@ def build_group(
     reset_id,
     split,
     probe_mode,
-    target_seed_value,
+    target_action,
 ):
     post_probe = env.restore(checkpoint)
     probe_action, probe_state, probe_mask = padded_probe_arrays(
@@ -173,12 +169,6 @@ def build_group(
         candidate_contact_mode[index] = modes
         candidate_contact_impulse[index] = contact_impulse(states)
 
-    env.restore(checkpoint)
-    target_action = make_target_action(
-        env,
-        seed=int(target_seed_value),
-        candidate_actions=actions,
-    )
     env.restore(checkpoint)
     target_states, _ = rollout_action(env, target_action)
     target_translation = (
@@ -235,6 +225,12 @@ def collect_config(args, split, config):
         )
         initial_checkpoint = env.checkpoint()
         initial_state = env.snapshot()
+        target_action = make_target_action(
+            env,
+            seed=target_seed(args.seed, config, reset_id),
+            candidate_actions=actions,
+        )
+        env.restore(initial_checkpoint)
         rows.append(build_group(
             env,
             initial_checkpoint,
@@ -245,7 +241,7 @@ def collect_config(args, split, config):
             reset_id,
             split,
             "none",
-            target_seed(args.seed, config, reset_id, "none", 0),
+            target_action,
         ))
 
         fixed, random = make_probe_sequences(
@@ -281,13 +277,7 @@ def collect_config(args, split, config):
                     reset_id,
                     split,
                     mode,
-                    target_seed(
-                        args.seed,
-                        config,
-                        reset_id,
-                        mode,
-                        length,
-                    ),
+                    target_action,
                 ))
         print(
             f"[{split}] {config.object_id} reset={reset_id}",

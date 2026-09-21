@@ -52,9 +52,11 @@ horizon of eight control steps.
 
 ## Target and Utility
 
-Each group includes an independent target action generated from a frozen
-smooth target-action family distinct from the 13 candidate actions. The
-target action is not an input to deployable models.
+Each reset includes one target action generated from a frozen smooth
+target-action family distinct from the 13 candidate actions. The same
+target action is reused across all probe conditions of that reset, so the
+task target is not confounded with the probe. The target action is not an
+input to deployable models.
 
 The target translation is:
 

@@ -44,6 +44,13 @@ class DWMProbeDatasetTest(unittest.TestCase):
             expected_order,
         ] = np.arange(expected_order.shape[1])[None, :]
         np.testing.assert_array_equal(data["rank"], expected_rank)
+        for reset_id in sorted(set(data["reset_id"].tolist())):
+            reset_mask = data["reset_id"] == reset_id
+            target = data["target_action"][reset_mask]
+            np.testing.assert_array_equal(
+                target,
+                np.repeat(target[:1], target.shape[0], axis=0),
+            )
         self.assertTrue(np.isfinite(data["post_probe_state"]).all())
 
 

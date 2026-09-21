@@ -1,0 +1,188 @@
+{
+  "scope": "Frozen-score audit; no training or threshold selection. Source-filter ablation is descriptive, not a new held-out experiment.",
+  "threshold": 0.6525985410038043,
+  "replay": {
+    "train": {
+      "true_positive": 26,
+      "false_positive": 18,
+      "false_negative": 7,
+      "total_truth": 33,
+      "total_predictions": 44,
+      "precision": 0.5909090909090909,
+      "recall": 0.7878787878787878,
+      "f1": 0.6753246753246753,
+      "matches_recorded": true
+    },
+    "val": {
+      "true_positive": 20,
+      "false_positive": 20,
+      "false_negative": 16,
+      "total_truth": 36,
+      "total_predictions": 40,
+      "precision": 0.5,
+      "recall": 0.5555555555555556,
+      "f1": 0.5263157894736842,
+      "matches_recorded": true
+    },
+    "test": {
+      "true_positive": 31,
+      "false_positive": 10,
+      "false_negative": 6,
+      "total_truth": 37,
+      "total_predictions": 41,
+      "precision": 0.7560975609756098,
+      "recall": 0.8378378378378378,
+      "f1": 0.7948717948717948,
+      "matches_recorded": true
+    }
+  },
+  "without_source_filter": {
+    "train": {
+      "true_positive": 26,
+      "false_positive": 26,
+      "false_negative": 7,
+      "total_truth": 33,
+      "total_predictions": 52,
+      "precision": 0.5,
+      "recall": 0.7878787878787878,
+      "f1": 0.611764705882353
+    },
+    "val": {
+      "true_positive": 20,
+      "false_positive": 28,
+      "false_negative": 16,
+      "total_truth": 36,
+      "total_predictions": 48,
+      "precision": 0.4166666666666667,
+      "recall": 0.5555555555555556,
+      "f1": 0.47619047619047616
+    },
+    "test": {
+      "true_positive": 31,
+      "false_positive": 15,
+      "false_negative": 6,
+      "total_truth": 37,
+      "total_predictions": 46,
+      "precision": 0.6739130434782609,
+      "recall": 0.8378378378378378,
+      "f1": 0.7469879518072289
+    }
+  },
+  "timing_errors": {
+    "train": {
+      "matched": 26,
+      "late_matches": 0,
+      "on_time_matches": 7,
+      "early_matches": 19,
+      "median_error_frames": -5.5
+    },
+    "val": {
+      "matched": 20,
+      "late_matches": 0,
+      "on_time_matches": 1,
+      "early_matches": 19,
+      "median_error_frames": -10.0
+    },
+    "test": {
+      "matched": 31,
+      "late_matches": 0,
+      "on_time_matches": 2,
+      "early_matches": 29,
+      "median_error_frames": -8.0
+    }
+  },
+  "source_counts": {
+    "train": {
+      "handover": 44,
+      "nonhandover": 193
+    },
+    "val": {
+      "handover": 41,
+      "nonhandover": 209
+    },
+    "test": {
+      "handover": 41,
+      "nonhandover": 181
+    }
+  },
+  "trajectory_keys": [
+    "sequences",
+    "splits",
+    "participant_pairs",
+    "object_ids",
+    "object_names",
+    "lengths",
+    "giver_distance_m",
+    "receiver_distance_m"
+  ],
+  "participant_pairs": {
+    "train": [
+      "0005->0006",
+      "0006->0005",
+      "0009->0010",
+      "0010->0009"
+    ],
+    "val": [
+      "0002->0004",
+      "0002->0007",
+      "0004->0002",
+      "0007->0002",
+      "0007->0008",
+      "0008->0007"
+    ],
+    "test": [
+      "0001->0003",
+      "0003->0001"
+    ]
+  },
+  "actual_participants": {
+    "train": [
+      "0005",
+      "0006",
+      "0009",
+      "0010"
+    ],
+    "val": [
+      "0002",
+      "0004",
+      "0007",
+      "0008"
+    ],
+    "test": [
+      "0001",
+      "0003"
+    ]
+  },
+  "nonhandover_intent_counts": {
+    "train": {
+      "use": 91,
+      "hold": 60,
+      "liftup": 42
+    },
+    "val": {
+      "use": 79,
+      "hold": 70,
+      "liftup": 60
+    },
+    "test": {
+      "use": 68,
+      "hold": 59,
+      "liftup": 54
+    }
+  },
+  "object_overlap": {
+    "train_val": 0,
+    "train_test": 0,
+    "val_test": 0
+  },
+  "sha256": {
+    "C:\\Users\\何炯乐\\Documents\\HOI项目\\oakink_online_handover_detector_v1_20260921\\server_output\\online_predictions.npz": "642e686f71c16026f2c22eb5b7d95158dfe0e54d82e9e2041758d723b756ee2b",
+    "C:\\Users\\何炯乐\\Documents\\HOI项目\\oakink_handover_manifest_v1_20260921\\role_switch_candidates.jsonl.gz": "65d012f221e9ebd34973dbf5136439e23cb829c88b36b03f095244eb46d00a2a",
+    "E:\\HOI\\MaMi-HOI-SDFwithVLM\\docs\\experiments\\oakink_sequence_aware_detector_summary_v1_20260921.json": "7e08f5f4b1a10144ef0984c9e55a3330107c274ee0f2ceeafe259a8eedd71173",
+    "C:\\Users\\何炯乐\\Documents\\HOI项目\\oakink_handover_manifest_v1_20260921\\handover_trajectories_portable.npz": "4d2dba50a273975d9c83e0f5f2aca301a7610551c14af71bfbae5b758895fe14",
+    "C:\\Users\\何炯乐\\Documents\\HOI项目\\oakink_cross_intent_trajectories_v1_20260921\\trajectories.npz": "fb9f8c3914f168711b4b705baff127939bed1acb5ef9e70c4a1865dea1c9a6d9",
+    "E:\\HOI\\MaMi-HOI-SDFwithVLM\\scripts\\evaluate_oakink_sequence_aware_handover_detector.py": "f9a8f23c71f1cf147363bbc471a7cc6dcd75b11f2d1cf74ae7fa5e8c7a3ae378",
+    "E:\\HOI\\MaMi-HOI-SDFwithVLM\\scripts\\evaluate_oakink_online_handover_detector.py": "a2652e217f70b82e0b79bb92e78dc9ed54bc47fd9961d1c050506f971e4fd5c9",
+    "E:\\HOI\\MaMi-HOI-SDFwithVLM\\scripts\\build_oakink_handover_windows.py": "ad3d38ce033a5ad71e798ae7c9a51940890fab0b0149f225d13ff7fd6708fb79"
+  }
+}

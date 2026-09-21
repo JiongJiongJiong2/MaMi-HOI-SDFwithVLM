@@ -178,11 +178,18 @@ def out_of_fold_scores(
     return scores
 
 
-def merge_split_scores(splits, train_scores, val_scores):
+def merge_split_scores(
+    splits,
+    train_scores,
+    val_scores,
+    test_scores=None,
+):
     splits = np.asarray(splits)
     result = np.full(len(splits), np.nan, dtype=np.float64)
     result[splits == "train"] = train_scores
     result[splits == "val"] = val_scores
+    if test_scores is not None:
+        result[splits == "test"] = test_scores
     if np.isnan(result).any():
         raise ValueError("missing scores for one or more splits")
     return result
@@ -199,6 +206,7 @@ def main():
     participants = arrays["participants"]
     train = splits == "train"
     val = splits == "val"
+    test = splits == "test"
 
     output = {
         "folds": args.folds,
@@ -243,14 +251,30 @@ def main():
                 threshold,
             ),
         }
+        test_scores = None
+        if test.any():
+            test_scores = fit_predict(
+                model_name,
+                flat[train],
+                labels[train],
+                flat[test],
+                args.seed + 100 * offset,
+            )
+            output["models"][model_name]["test"] = metric_bundle(
+                labels[test],
+                test_scores,
+                threshold,
+            )
+        combined_scores = merge_split_scores(
+            splits,
+            oof,
+            val_scores,
+            test_scores,
+        )
         np.savez_compressed(
             args.output_dir / f"{model_name}_predictions.npz",
             labels=labels,
-            scores=merge_split_scores(
-                splits,
-                oof,
-                val_scores,
-            ),
+            scores=combined_scores,
             splits=splits,
             participants=participants,
         )
@@ -284,6 +308,26 @@ def main():
         ),
         "official_test_available": False,
     }
+    if test.any():
+        test_prevalence = float(np.mean(labels[test]))
+        test_all_positive_f1 = (
+            2.0 * test_prevalence / (1.0 + test_prevalence)
+            if test_prevalence
+            else 0.0
+        )
+        output["test_baseline"] = {
+            "prevalence": test_prevalence,
+            "all_positive_f1": test_all_positive_f1,
+        }
+        output["gate"].update({
+            "test_auprc_above_prevalence": (
+                best["test"]["auprc"] > test_prevalence
+            ),
+            "test_f1_above_all_positive": (
+                best["test"]["f1"] > test_all_positive_f1
+            ),
+            "test_recall_ge_0_5": best["test"]["recall"] >= 0.5,
+        })
     output["gate"]["pilot_overall"] = all((
         output["gate"]["val_auprc_above_prevalence"],
         output["gate"]["val_f1_above_all_positive"],

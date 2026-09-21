@@ -27,6 +27,15 @@ class TrainArcticRoleSwitchCandidatesTest(unittest.TestCase):
         )
         np.testing.assert_allclose(merged, [0.1, 0.9, 0.2])
 
+    def test_merge_split_scores_with_test(self):
+        merged = merge_split_scores(
+            np.asarray(["train", "val", "test"]),
+            np.asarray([0.1]),
+            np.asarray([0.2]),
+            np.asarray([0.3]),
+        )
+        np.testing.assert_allclose(merged, [0.1, 0.2, 0.3])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,0 +1,61 @@
+{
+  "candidate_count_summary": {
+    "max": 2,
+    "mean": 2.0,
+    "min": 2
+  },
+  "checks": {
+    "collision_not_worse_than_shuffled": false,
+    "correct_beats_no_future_ci": false,
+    "correct_beats_shuffled_ci": false,
+    "eligible_events_ge_60": true,
+    "oracle_top1_rate_ge_0_55": true,
+    "sensitivity_direction": false,
+    "top1_observed_rate_not_dropped": true
+  },
+  "correct_minus_no_future_evaluation": {
+    "draws": 2000,
+    "lower": 0.0,
+    "mean": 0.0,
+    "upper": 0.0
+  },
+  "correct_minus_shuffled_collision": {
+    "draws": 2000,
+    "lower": 0.0,
+    "mean": 0.0,
+    "upper": 0.0
+  },
+  "correct_minus_shuffled_evaluation": {
+    "draws": 2000,
+    "lower": 0.0,
+    "mean": 0.0,
+    "upper": 0.0
+  },
+  "correct_vs_no_future_rank_transition": {
+    "correct_only": 0,
+    "exact_mcnemar_p": 1.0,
+    "no_future_only": 0
+  },
+  "eligible_events": 82,
+  "overall": false,
+  "sensitivity": {
+    "0.25": {
+      "correct_minus_no_future_mean": 0.0,
+      "correct_minus_shuffled_mean": 0.0
+    },
+    "0.50": {
+      "correct_minus_no_future_mean": 0.0,
+      "correct_minus_shuffled_mean": 0.0
+    },
+    "1.00": {
+      "correct_minus_no_future_mean": 0.008920976565340666,
+      "correct_minus_shuffled_mean": 0.00877621108482417
+    }
+  },
+  "top1_observed_rate": {
+    "correct": 0.5,
+    "no_future": 0.5,
+    "oracle": 0.573170731707317,
+    "shuffled": 0.5
+  }
+}

@@ -38,8 +38,8 @@ Phase 1
 
 ### Phase 4: Decision and Commit
 - [x] Record GO, CONDITIONAL, or NO-GO
-- [ ] Commit protocol, code, tests, report, and hashes
-- **Status:** in_progress
+- [x] Commit protocol, code, tests, report, and hashes
+- **Status:** complete
 
 ## Boundary
 

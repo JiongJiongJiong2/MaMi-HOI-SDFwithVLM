@@ -31,9 +31,11 @@
   - Frozen gate is NO-GO.
 
 ### Phase 4: Decision and Commit
-- **Status:** in_progress
+- **Status:** complete
 - Actions taken:
   - Created the result report and compact summary.
+  - Committed the frozen C0-R2 result as
+    `5464402 test(data): reject decoupled OakInk future conditioning`.
 
 ## Errors Encountered
 

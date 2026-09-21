@@ -6,6 +6,7 @@ from scripts.analyze_arctic_role_switch_candidates import (
     classify_tier,
     enrich_candidate,
     split_summary,
+    tier_gate,
 )
 
 
@@ -81,6 +82,25 @@ class RoleSwitchCandidateTest(unittest.TestCase):
         self.assertEqual(result["candidate_count"], 2)
         self.assertEqual(result["candidate_participants"], 2)
         self.assertEqual(result["candidate_objects"], ["box"])
+
+    def test_tier_gate_reads_primary_tier(self):
+        summary = {
+            "0.0030": {
+                "tier_a": {
+                    "train": {
+                        "candidate_count": 10,
+                        "candidate_participants": 3,
+                        "candidate_directions": {
+                            "left_to_right": 2,
+                            "right_to_left": 2,
+                        },
+                        "candidate_objects": ["a", "b", "c"],
+                    },
+                    "val": {"candidate_count": 1},
+                },
+            },
+        }
+        self.assertTrue(tier_gate(summary)["pilot_tier_a_overall"])
 
 
 if __name__ == "__main__":

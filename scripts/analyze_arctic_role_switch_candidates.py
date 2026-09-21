@@ -166,7 +166,7 @@ def split_summary(rows, split):
 
 
 def tier_gate(tier_a_by_threshold):
-    primary = tier_a_by_threshold["0.0030"]
+    primary = tier_a_by_threshold["0.0030"]["tier_a"]
     train = primary["train"]
     val = primary["val"]
     checks = {

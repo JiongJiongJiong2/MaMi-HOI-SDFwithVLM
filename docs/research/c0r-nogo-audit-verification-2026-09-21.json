@@ -1,0 +1,77 @@
+{
+  "candidate_availability": {
+    "all_c0_events": {
+      "candidate_counts": {
+        "2": 41
+      },
+      "eligible_targets": 82,
+      "events": 106,
+      "objects_with_at_least_2": 41,
+      "objects_with_events": 65
+    },
+    "complete_window_ge_45": {
+      "candidate_counts": {
+        "2": 27
+      },
+      "eligible_targets": 54,
+      "events": 82,
+      "objects_with_at_least_2": 27,
+      "objects_with_events": 55
+    },
+    "reference_frames_valid": {
+      "candidate_counts": {
+        "2": 41
+      },
+      "eligible_targets": 82,
+      "events": 106,
+      "objects_with_at_least_2": 41,
+      "objects_with_events": 65
+    }
+  },
+  "condition_evaluation_overlap": {
+    "correlation_events": 35,
+    "events": 54,
+    "mean_within_event_correlation": 0.9428571428571428,
+    "same_argmax": 45,
+    "same_argmax_rate": 0.8333333333333334
+  },
+  "frozen_selection_change_rate": 0.14814814814814814,
+  "frozen_summary_overall": false,
+  "interpretation_flags": {
+    "candidate_sets_are_pairwise_only": true,
+    "condition_and_evaluation_share_receiver_geometry": true,
+    "implementation_matches_protocol": true,
+    "reference_valid_universe_not_used": true
+  },
+  "paired_transitions": {
+    "changed_selection": {
+      "correct_top1_true": 7,
+      "count": 8,
+      "no_future_top1_true": 1
+    },
+    "correct_minus_shuffled_evaluation": {
+      "mean": 0.05805691222573817,
+      "negative": 3,
+      "positive": 9,
+      "zero": 42
+    },
+    "correct_vs_no_future_top1": {
+      "both": 26,
+      "exact_mcnemar_p": 0.0703125,
+      "left_only": 1,
+      "left_rate": 0.5,
+      "neither": 20,
+      "right_only": 7,
+      "right_rate": 0.6111111111111112
+    },
+    "correct_vs_shuffled_top1": {
+      "both": 21,
+      "exact_mcnemar_p": 0.00048828125,
+      "left_only": 0,
+      "left_rate": 0.3888888888888889,
+      "neither": 21,
+      "right_only": 12,
+      "right_rate": 0.6111111111111112
+    }
+  }
+}

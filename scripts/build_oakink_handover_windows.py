@@ -35,7 +35,10 @@ def read_candidates(path, threshold_m):
     with gzip.open(path, "rt", encoding="utf-8") as handle:
         for line in handle:
             row = json.loads(line)
-            if abs(float(row["threshold_m"]) - threshold_m) < 1e-12:
+            row_threshold = float(
+                row.get("threshold_m", PRIMARY_THRESHOLD_M)
+            )
+            if abs(row_threshold - threshold_m) < 1e-12:
                 rows.append(row)
     return rows
 

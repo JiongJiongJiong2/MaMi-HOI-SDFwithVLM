@@ -34,8 +34,8 @@ Phase 1
 
 ### Phase 4: Report and Commit
 - [x] Add an audit report and machine-readable summary
-- [ ] Commit the audit without rewriting the original result
-- **Status:** in_progress
+- [x] Commit the audit without rewriting the original result
+- **Status:** complete
 
 ## Boundary
 

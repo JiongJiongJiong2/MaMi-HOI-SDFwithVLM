@@ -34,9 +34,11 @@
   - C0-R1 does not block D, B, or E5.
 
 ### Phase 4: Report and Commit
-- **Status:** in_progress
+- **Status:** complete
 - Actions taken:
   - Created the audit report and machine-readable verification JSON.
+  - Committed the audit as
+    `3ec8c93 docs(research): audit OakInk C0-R1 NO-GO`.
 
 ## 5-Question Reboot Check
 

@@ -3,6 +3,7 @@ import unittest
 import numpy as np
 
 from scripts.build_oakink_handover_manifest import (
+    parse_ply_vertices,
     parse_sample_name,
     parse_sequence,
     role_switch_event,
@@ -43,6 +44,26 @@ class OakInkHandoverManifestTest(unittest.TestCase):
         )
         self.assertEqual(len(candidates), 1)
         self.assertEqual(candidates[0]["onset_minus_release"], 5)
+
+    def test_parse_binary_ply_vertices(self):
+        header = (
+            "ply\n"
+            "format binary_little_endian 1.0\n"
+            "element vertex 2\n"
+            "property float x\n"
+            "property float y\n"
+            "property float z\n"
+            "end_header\n"
+        ).encode("ascii")
+        payload = np.asarray(
+            [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]],
+            dtype="<f4",
+        ).tobytes()
+        vertices = parse_ply_vertices(header + payload)
+        np.testing.assert_allclose(
+            vertices,
+            [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]],
+        )
 
 
 if __name__ == "__main__":

@@ -91,22 +91,100 @@ def load_object_id_mapping(meta_zip):
         return json.load(handle)
 
 
+def parse_ply_vertices(data):
+    marker = data.find(b"end_header")
+    if marker < 0:
+        raise ValueError("PLY header is missing end_header")
+    newline = data.find(b"\n", marker)
+    if newline < 0:
+        raise ValueError("PLY header is truncated")
+    header = data[:marker].decode("ascii").splitlines()
+    payload = data[newline + 1:]
+    format_name = next(
+        line.split()[1] for line in header if line.startswith("format ")
+    )
+    vertex_count = None
+    vertex_properties = []
+    current_element = None
+    for line in header:
+        parts = line.split()
+        if not parts:
+            continue
+        if parts[0] == "element":
+            current_element = parts[1]
+            if current_element == "vertex":
+                vertex_count = int(parts[2])
+        elif (
+            parts[0] == "property"
+            and current_element == "vertex"
+            and parts[1] != "list"
+        ):
+            vertex_properties.append((parts[2], parts[1]))
+    if not vertex_count or not vertex_properties:
+        raise ValueError("PLY vertex schema is missing")
+    if format_name == "ascii":
+        rows = payload.decode("ascii").splitlines()[:vertex_count]
+        vertices = np.asarray([
+            [float(value) for value in row.split()[:3]]
+            for row in rows
+        ], dtype=np.float64)
+    else:
+        dtype_map = {
+            "char": "i1",
+            "uchar": "u1",
+            "short": "i2",
+            "ushort": "u2",
+            "int": "i4",
+            "uint": "u4",
+            "float": "f4",
+            "double": "f8",
+        }
+        endian = "<" if format_name.endswith("little_endian") else ">"
+        dtype = np.dtype([
+            (name, endian + dtype_map[property_type])
+            for name, property_type in vertex_properties
+        ])
+        expected = vertex_count * dtype.itemsize
+        if len(payload) < expected:
+            raise ValueError("PLY vertex payload is truncated")
+        records = np.frombuffer(
+            payload[:expected],
+            dtype=dtype,
+            count=vertex_count,
+        )
+        vertices = np.column_stack((
+            records["x"],
+            records["y"],
+            records["z"],
+        )).astype(np.float64)
+    if vertices.ndim != 2 or vertices.shape[1] != 3:
+        raise ValueError("PLY vertices are invalid")
+    return vertices
+
+
 def load_downsampled_object(objects_zip, object_name):
     prefix = f"OakInkObjectsV2/{object_name}/align_ds/"
     candidates = [
         name for name in objects_zip.namelist()
-        if name.startswith(prefix) and name.lower().endswith(".obj")
+        if name.startswith(prefix)
+        and name.lower().endswith((".obj", ".ply"))
     ]
     if not candidates:
         raise FileNotFoundError(object_name)
-    lines = objects_zip.read(sorted(candidates)[0]).decode(
-        "latin1"
-    ).splitlines()
-    vertices = np.asarray([
-        [float(value) for value in line.split()[1:4]]
-        for line in lines
-        if line.startswith("v ")
-    ], dtype=np.float64)
+    obj_candidates = [
+        name for name in candidates if name.lower().endswith(".obj")
+    ]
+    selected = sorted(obj_candidates or candidates)[0]
+    data = objects_zip.read(selected)
+    if selected.lower().endswith(".ply"):
+        vertices = parse_ply_vertices(data)
+    else:
+        lines = data.decode("latin1").splitlines()
+        vertices = np.asarray([
+            [float(value) for value in line.split()[1:4]]
+            for line in lines
+            if line.startswith("v ")
+        ], dtype=np.float64)
     if vertices.ndim != 2 or vertices.shape[1] != 3:
         raise ValueError(object_name)
     return vertices

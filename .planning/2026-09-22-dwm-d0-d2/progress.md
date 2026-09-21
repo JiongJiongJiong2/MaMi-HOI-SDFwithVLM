@@ -23,26 +23,39 @@
 | Reduced dataset schema | 78 trajectories | 168D state / 51D action | matched | pass |
 
 ### D0-B: Counterfactual Dataset
-- **Status:** in_progress
+- **Status:** complete
 - Actions taken:
   - Implemented all 13 frozen action branches.
   - Calibrated per-shape contact offsets and the contact mix.
   - Added the split-disjoint dataset writer.
   - Generated a reduced server smoke dataset.
-- Pending:
-  - Run the full 17,280-trajectory generation on the larger server.
+- Result:
+  - Generated 18,720 trajectories.
+  - Train excitation rate `0.8958`.
+  - Reproducibility difference `0.0`.
+  - All split and mode gates pass.
 - Errors fixed:
   - Added missing MuJoCo inertial records.
   - Replaced zero-order-hold PD with per-substep PD.
   - Replaced `cfrc_ext` with `mj_contactForce` aggregation.
   - Calibrated contact heights and wrist yaw.
 
+### D1: Action Identifiability
+- **Status:** complete with NO-GO
+- Result:
+  - True action does not beat zero/shuffled on object translation or
+    rotation.
+  - Mode macro-F1 gain is about `0.03`, below the required `0.10`.
+  - D2 is not authorized.
+- Evidence:
+  - `docs/experiments/dwm-d1-identifiability-result-2026-09-22.md`
+
 ## 5-Question Reboot Check
 
 | Question | Answer |
 |---|---|
-| Where am I? | D0-B full dataset generation |
-| Where am I going? | finish D0-B gates, D1 identifiability, D2 utility |
+| Where am I? | D1 NO-GO; D line stopped before D2 |
+| Where am I going? | archived decision; MaMi integration not authorized |
 | What is the goal? | build a real same-state multi-action simulator study |
 | What have I learned? | existing MaMi action data cannot serve as counterfactual truth |
-| What have I done? | completed D0-A and reduced D0-B implementation smoke |
+| What have I done? | completed full D0-B data gate and D1 identifiability test |

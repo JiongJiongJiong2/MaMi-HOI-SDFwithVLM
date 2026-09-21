@@ -60,3 +60,23 @@ state/action schema:                168D / 51D
 D0-A is complete. D0-B branch generation is implemented and passes the
 small excitation smoke. Full data generation is waiting for the larger
 server instance.
+
+## Full D0-B and D1 Result
+
+The full D0-B gates pass:
+
+```text
+trajectories:          18,720
+train excitation:      645 / 720 = 0.8958
+reproducibility:       exact zero difference
+split-group overlaps:  0
+mode coverage:         pass
+```
+
+D1 is NO-GO. Object response error for the true-action arm is worse
+than shuffled and zero action in both object-held-out and
+reset-held-out tests. Contact-mode macro-F1 improves by only about
+0.03, below the frozen 0.10 requirement.
+
+D2 is not run. The current formulation does not identify object
+dynamics well enough to authorize MaMi integration.

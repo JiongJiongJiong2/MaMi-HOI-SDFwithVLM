@@ -23,21 +23,21 @@ D0-B
 ### D0-B: Counterfactual Dataset
 - [x] Implement the 12 fixed action branches
 - [x] Run branch excitation smoke
-- [ ] Generate the split-disjoint trajectory dataset
-- [ ] Apply reproducibility, excitation, coverage, and leakage gates
-- **Status:** in_progress
+- [x] Generate the split-disjoint trajectory dataset
+- [x] Apply reproducibility, excitation, coverage, and leakage gates
+- **Status:** complete
 
 ### D1: Action Identifiability
-- [ ] Train true/shuffled/zero-action arms
-- [ ] Evaluate h1/h2/h4/h8 object response and contact mode
-- [ ] Record the action-shuffle gap and gate decision
-- **Status:** pending
+- [x] Train true/shuffled/zero-action arms
+- [x] Evaluate h1/h2/h4/h8 object response and contact mode
+- [x] Record the action-shuffle gap and gate decision
+- **Status:** complete with NO-GO
 
 ### D2: Decision Utility
 - [ ] Build the target object-displacement task
 - [ ] Compare model ranking, geometry heuristic, random, and oracle
 - [ ] Record regret, top-1, slip/release safety, and GO/NO-GO
-- **Status:** pending
+- **Status:** stopped; D1 gate failed
 
 ## Required Server Boundary
 

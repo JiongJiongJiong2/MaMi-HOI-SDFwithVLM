@@ -17,6 +17,7 @@ from .config import (
     object_configs_for_split,
 )
 from .env import DWMSimEnv
+from .model import DWMTransitionModel
 from .schema import (
     CONTACT_BODY_COUNT,
     CONTACT_MODE_LABELS,
@@ -34,6 +35,7 @@ __all__ = [
     "CONTACT_MODE_LABELS",
     "CONTROL_PERIOD",
     "DWMSimEnv",
+    "DWMTransitionModel",
     "DWMStateV1",
     "FINGER_JOINT_COUNT",
     "HORIZON",

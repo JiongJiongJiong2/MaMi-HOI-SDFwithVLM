@@ -72,6 +72,11 @@ def parse_condition(text):
 
 
 def select_condition(split, condition):
+    if condition == "primary":
+        indices = np.flatnonzero(split["probe_length"] <= 2)
+        if indices.size == 0:
+            raise ValueError("primary condition has no rows")
+        return split_indices(split, indices)
     mode, length = parse_condition(condition)
     if mode is None:
         return split
@@ -197,12 +202,17 @@ def ranking_loss(scores, utility, mode, temperature=0.002):
     raise ValueError(f"unsupported ranking mode: {mode}")
 
 
-def geometry_logit(candidate_action, target_translation):
+def geometry_inputs(candidate_action, target_translation):
     hold = candidate_action[:, 0, -1, :3]
     displacement = candidate_action[:, :, -1, :3] - hold[:, None]
-    return -torch.abs(
-        displacement - target_translation[:, None, :]
-    ).sum(dim=-1) / 0.02
+    error = displacement - target_translation[:, None, :]
+    logit = -torch.abs(error).sum(dim=-1) / 0.02
+    features = torch.cat([
+        displacement / 0.02,
+        error / 0.02,
+        logit[..., None] / 5.0,
+    ], dim=-1)
+    return logit, features
 
 
 def forward_batch(model, batch, normalization):
@@ -210,6 +220,10 @@ def forward_batch(model, batch, normalization):
     kwargs = {}
     if model.oracle_context_dim > 0:
         kwargs["oracle_context"] = batch["oracle_context"]
+    logit, features = geometry_inputs(
+        batch["candidate_action"],
+        batch["target_translation"],
+    )
     return model(
         normalized["initial_state"],
         normalized["probe_action"],
@@ -218,10 +232,8 @@ def forward_batch(model, batch, normalization):
         normalized["post_probe_state"],
         normalized["candidate_action"],
         batch["target_translation"] / 0.02,
-        geometry_logit=geometry_logit(
-            batch["candidate_action"],
-            batch["target_translation"],
-        ),
+        geometry_logit=logit,
+        geometry_features=features,
         **kwargs,
     )
 

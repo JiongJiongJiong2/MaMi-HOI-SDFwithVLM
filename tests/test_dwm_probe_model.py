@@ -120,6 +120,7 @@ class DWMProbeRankingModelTest(unittest.TestCase):
             self.candidate,
             self.target,
             geometry_logit=geometry,
+            geometry_features=torch.zeros(2, 5, 7),
         )
         torch.testing.assert_close(
             output["candidate_score"],

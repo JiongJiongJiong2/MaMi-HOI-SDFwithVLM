@@ -45,10 +45,10 @@ Protocol and environment API
 ### 5. P0-R Geometry Residual
 - [x] Implement geometry logit and zero-initialized residual score
 - [x] Add top-1-aware training objective
-- [ ] Run server unit tests
-- [ ] Train three seeds and evaluate frozen gate
-- [ ] Record P0-R GO/NO-GO
-- **Status:** implemented; waiting for a running server
+- [x] Run server unit tests
+- [x] Train three seeds and evaluate frozen gate
+- [x] Record P0-R GO/NO-GO
+- **Status:** complete with NO-GO
 
 ## Frozen Decisions
 

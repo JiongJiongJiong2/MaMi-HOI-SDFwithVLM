@@ -20,6 +20,7 @@ class DWMProbeRankingModel(nn.Module):
         max_candidate_horizon=8,
         oracle_context_dim=0,
         use_geometry_baseline=False,
+        geometry_feature_dim=7,
     ):
         super().__init__()
         self.hidden_size = int(hidden_size)
@@ -28,6 +29,7 @@ class DWMProbeRankingModel(nn.Module):
         self.max_candidate_horizon = int(max_candidate_horizon)
         self.oracle_context_dim = int(oracle_context_dim)
         self.use_geometry_baseline = bool(use_geometry_baseline)
+        self.geometry_feature_dim = int(geometry_feature_dim)
         if min(
             self.hidden_size,
             self.response_dim,
@@ -76,7 +78,10 @@ class DWMProbeRankingModel(nn.Module):
             nn.SiLU(),
         )
         self.output_projection = nn.Sequential(
-            nn.Linear(hidden_size * 3 + response_dim, hidden_size),
+            nn.Linear(
+                hidden_size * 3 + response_dim + self.geometry_feature_dim,
+                hidden_size,
+            ),
             nn.SiLU(),
         )
         self.score_head = nn.Linear(hidden_size, 1)
@@ -134,6 +139,7 @@ class DWMProbeRankingModel(nn.Module):
         candidate_action,
         target_translation,
         geometry_logit=None,
+        geometry_features=None,
         oracle_context=None,
     ):
         if initial_state.shape != (initial_state.shape[0], STATE_DIM):
@@ -161,6 +167,14 @@ class DWMProbeRankingModel(nn.Module):
                 raise ValueError("geometry_logit is required")
             if geometry_logit.shape != candidate_action.shape[:2]:
                 raise ValueError("geometry_logit must be [B, K]")
+            if (
+                geometry_features is None
+                or geometry_features.shape
+                != (*candidate_action.shape[:2], self.geometry_feature_dim)
+            ):
+                raise ValueError(
+                    "geometry_features must be [B, K, F]"
+                )
 
         response_mu, response_logvar = self._response_stats(
             initial_state,
@@ -199,10 +213,19 @@ class DWMProbeRankingModel(nn.Module):
             candidate_count,
             self.hidden_size,
         )
+        if geometry_features is None:
+            geometry_features = torch.zeros(
+                batch_size,
+                candidate_count,
+                self.geometry_feature_dim,
+                dtype=candidate_feature.dtype,
+                device=candidate_feature.device,
+            )
         output = self.output_projection(torch.cat([
             response,
             candidate_feature,
             target_feature,
+            geometry_features,
         ], dim=-1))
         residual_score = self.score_head(output).squeeze(-1)
         candidate_score = residual_score

@@ -24,7 +24,8 @@ correction to that score.
 ## Model
 
 The P0-R model receives the same inputs as the target-conditioned P0 model
-and additionally receives:
+and additionally receives geometry features describing the candidate wrist
+displacement, target error vector, and geometry logit.
 
 ```text
 geometry_logit[B, K]

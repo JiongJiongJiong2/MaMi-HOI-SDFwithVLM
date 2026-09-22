@@ -2,6 +2,8 @@
 
 Date: 2026-09-22
 
+> Status reconciliation, 2026-09-22: the P0 and residual follow-ups recommended below have since been completed with NO-GO under their frozen gates. This is a historical design assessment, not the current execution queue. Read [the current research entry](../../RESEARCH_START_HERE.md) for P0-R2 and MaMi reranker results. Do not restart P0/P1 from this report.
+
 Status: research decision report. This report does not reopen the frozen
 D1 gate, train a new model, or authorize MaMi integration.
 

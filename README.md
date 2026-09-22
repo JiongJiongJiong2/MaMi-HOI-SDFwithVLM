@@ -26,6 +26,11 @@ The main training and inference entrypoint is `train/trainer_control_GAPA_chois.
 
 ## Environment Setup
 
+**Local research entry (updated 2026-09-22):** start with
+[RESEARCH_START_HERE.md](RESEARCH_START_HERE.md) for current decisions,
+completed/closed experiments, staged implementation tasks and handoff prompts.
+The dated G0/U1 paragraphs below are historical checkpoints, not today's queue.
+
 G0 status (2026-09-10): real validation execution PASS; original sectional-prior
 efficacy gate FAIL. A fixed spatial-diversity ablation improves coverage but
 does not establish a reliable advantage over the equally treated baseline.

@@ -1,0 +1,32 @@
+{
+  "archive": "/root/autodl-tmp/dwm_p0_results_v1_20260922.tar.gz",
+  "dataset_dir": "/root/autodl-tmp/dwm_d0c_probe_v1_20260922",
+  "error": null,
+  "finished_at": "2026-09-21T18:28:39Z",
+  "phase": "d0c_audit_no_go",
+  "results_dir": "/root/autodl-tmp/dwm_p0_results_v1_20260922",
+  "shutdown": [
+    {
+      "command": [
+        "shutdown",
+        "-h",
+        "now"
+      ],
+      "error": "OSError(8, 'Exec format error')"
+    },
+    {
+      "command": [
+        "poweroff"
+      ],
+      "returncode": 1
+    },
+    {
+      "command": [
+        "halt",
+        "-p"
+      ],
+      "returncode": 1
+    }
+  ],
+  "started_at": "2026-09-21T18:28:35Z"
+}

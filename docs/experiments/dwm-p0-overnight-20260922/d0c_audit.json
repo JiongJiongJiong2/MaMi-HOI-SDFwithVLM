@@ -1,0 +1,120 @@
+{
+  "checks": {
+    "mode_coverage_ge_100": true,
+    "probe_nested": true,
+    "rank_consistent": true,
+    "reproducibility_available": false,
+    "reproducibility_exact": false,
+    "schema_valid": true,
+    "split_groups_disjoint": true,
+    "target_distinct": true,
+    "train_utility_range_ge_0_8": false
+  },
+  "counts": {
+    "test": 2520,
+    "train": 5040,
+    "val": 2520
+  },
+  "mode_counts": {
+    "contact": 115434,
+    "none": 211564,
+    "release": 400488,
+    "slip": 451874
+  },
+  "overall": false,
+  "overlaps": {
+    "train_test": 0,
+    "train_val": 0,
+    "val_test": 0
+  },
+  "probe_nesting": {
+    "test": {
+      "comparisons": 1440,
+      "valid": true
+    },
+    "train": {
+      "comparisons": 2880,
+      "valid": true
+    },
+    "val": {
+      "comparisons": 1440,
+      "valid": true
+    }
+  },
+  "rank_consistent": true,
+  "reproducibility": null,
+  "schema": {
+    "test": {
+      "branch_names": true,
+      "finite_inputs": true,
+      "shape_candidate_action": true,
+      "shape_candidate_contact_impulse": true,
+      "shape_candidate_contact_mode": true,
+      "shape_candidate_final_object_pose": true,
+      "shape_initial_state": true,
+      "shape_post_probe_state": true,
+      "shape_probe_action": true,
+      "shape_probe_mask": true,
+      "shape_probe_state": true,
+      "shape_rank": true,
+      "shape_target_action": true,
+      "shape_target_translation": true,
+      "shape_utility": true
+    },
+    "train": {
+      "branch_names": true,
+      "finite_inputs": true,
+      "shape_candidate_action": true,
+      "shape_candidate_contact_impulse": true,
+      "shape_candidate_contact_mode": true,
+      "shape_candidate_final_object_pose": true,
+      "shape_initial_state": true,
+      "shape_post_probe_state": true,
+      "shape_probe_action": true,
+      "shape_probe_mask": true,
+      "shape_probe_state": true,
+      "shape_rank": true,
+      "shape_target_action": true,
+      "shape_target_translation": true,
+      "shape_utility": true
+    },
+    "val": {
+      "branch_names": true,
+      "finite_inputs": true,
+      "shape_candidate_action": true,
+      "shape_candidate_contact_impulse": true,
+      "shape_candidate_contact_mode": true,
+      "shape_candidate_final_object_pose": true,
+      "shape_initial_state": true,
+      "shape_post_probe_state": true,
+      "shape_probe_action": true,
+      "shape_probe_mask": true,
+      "shape_probe_state": true,
+      "shape_rank": true,
+      "shape_target_action": true,
+      "shape_target_translation": true,
+      "shape_utility": true
+    }
+  },
+  "target_checks": {
+    "test": {
+      "minimum_gap": 0.20481766760349274,
+      "valid": true
+    },
+    "train": {
+      "minimum_gap": 0.19711539149284363,
+      "valid": true
+    },
+    "val": {
+      "minimum_gap": 0.20355376601219177,
+      "valid": true
+    }
+  },
+  "utility_range": {
+    "groups": 5040,
+    "median_range": 0.005993132828734815,
+    "minimum_range": 0.0,
+    "range_gt_2mm": 3857,
+    "rate": 0.7652777777777777
+  }
+}

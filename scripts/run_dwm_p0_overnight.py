@@ -117,6 +117,7 @@ def make_archive(results_dir):
 def shutdown():
     attempts = []
     for command in (
+        ["bash", "/usr/bin/shutdown"],
         ["shutdown", "-h", "now"],
         ["poweroff"],
         ["halt", "-p"],
@@ -163,11 +164,30 @@ def main():
         try:
             status["phase"] = "d0c_audit"
             write_json(status_path, status)
+            repeat_a = args.results_dir / "repeat_a"
+            repeat_b = args.results_dir / "repeat_b"
+            for repeat_dir in (repeat_a, repeat_b):
+                run_command([
+                    sys.executable,
+                    str(root / "scripts" / "generate_dwm_probe_dataset.py"),
+                    "--output-dir",
+                    str(repeat_dir),
+                    "--resets-per-object",
+                    "1",
+                    "--object-limit",
+                    "1",
+                    "--workers",
+                    "1",
+                ], log)
             run_command([
                 sys.executable,
                 str(root / "scripts" / "audit_dwm_probe_dataset.py"),
                 "--dataset-dir",
                 str(args.dataset_dir),
+                "--repeat-a",
+                str(repeat_a),
+                "--repeat-b",
+                str(repeat_b),
                 "--output",
                 str(audit_path),
             ], log)

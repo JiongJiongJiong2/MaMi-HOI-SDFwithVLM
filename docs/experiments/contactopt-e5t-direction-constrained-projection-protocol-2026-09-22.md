@@ -4,6 +4,9 @@ Date: 2026-09-22
 
 Status: frozen before the full train/dev run
 
+Result:
+`docs/experiments/contactopt-e5t-direction-projection-result-2026-09-22.md`
+
 ## Goal
 
 Test whether constraining outward near-surface motion while retaining a

@@ -116,10 +116,8 @@ class AnalyzeContactOptDirectionProjectionTest(unittest.TestCase):
 
     def test_acceptance_gate_rejects_contact_regression(self):
         keys = [
-            ("train", "a"),
-            ("train", "b"),
-            ("dev", "c"),
-            ("dev", "d"),
+            *[("train", f"train_{index}") for index in range(16)],
+            *[("dev", f"dev_{index}") for index in range(4)],
         ]
         arm_rows = {}
         for arm in (
@@ -132,7 +130,9 @@ class AnalyzeContactOptDirectionProjectionTest(unittest.TestCase):
             arm_rows[arm] = {}
             for index, (split, sequence) in enumerate(keys):
                 contact = not (
-                    arm == "direction_constrained" and index == 0
+                    arm == "direction_constrained"
+                    and split == "train"
+                    and index < 13
                 )
                 arm_rows[arm][(
                     f"{split}_{sequence}",
@@ -179,9 +179,10 @@ class AnalyzeContactOptDirectionProjectionTest(unittest.TestCase):
         self.assertTrue(
             gate["checks"]["contact_not_below_e5t_train_and_dev"]
         )
-        self.assertTrue(
+        self.assertFalse(
             gate["checks"]["contact_regression_vs_e5_within_12"]
         )
+        self.assertFalse(gate["checks"]["pass"])
 
 
 if __name__ == "__main__":

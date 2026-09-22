@@ -252,20 +252,28 @@ def control_ci_gate(differences):
             split: differences[split][control]
             for split in ("train", "dev", "all")
         }
-        controls[control] = {
-            "differences": control_differences,
-            "lower_bound_positive_on_train_and_dev": all(
+        split_checks = {
+            split: (
                 item["ci95"] is not None
                 and item["ci95"][0] > 0
-                for item in (
-                    control_differences["train"],
-                    control_differences["dev"],
-                )
+            )
+            for split, item in control_differences.items()
+        }
+        controls[control] = {
+            "differences": control_differences,
+            "lower_bound_positive": split_checks,
+            "lower_bound_positive_on_train_and_dev": all(
+                split_checks[split]
+                for split in ("train", "dev")
             ),
         }
     return {
         "controls": controls,
         "any_control_ci_lower_positive": any(
+            any(item["lower_bound_positive"].values())
+            for item in controls.values()
+        ),
+        "any_control_ci_lower_positive_train_and_dev": any(
             item["lower_bound_positive_on_train_and_dev"]
             for item in controls.values()
         ),
@@ -369,7 +377,19 @@ def acceptance_gate(summaries, differences):
         "control_checks": strict_control_checks,
     }
     if not checks["pass"]:
-        decision = "NO-GO direction explanation; proceed to B"
+        contact_regression_removed = (
+            checks["contact_not_below_e5t_train_and_dev"]
+            and checks["contact_regression_vs_e5_within_12"]
+        )
+        decision = (
+            "NO-GO promotion: contact regression removed, mechanism not "
+            "established; do not retune on dev"
+            if contact_regression_removed
+            else (
+                "NO-GO direction explanation; contact regression remains; "
+                "proceed to B"
+            )
+        )
     elif mechanism_gate["strictly_above_all_fixed_controls"]:
         decision = "GO direction mechanism"
     else:

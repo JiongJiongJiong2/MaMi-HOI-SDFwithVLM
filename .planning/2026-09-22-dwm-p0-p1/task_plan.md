@@ -50,6 +50,12 @@ Protocol and environment API
 - [x] Record P0-R GO/NO-GO
 - **Status:** complete with NO-GO
 
+### 6. MaMi Contact Residual Reranker
+- [x] Evaluate geometry vs geometry+residual on the saved MaMi candidate pool
+- [x] Use sequence-held-out evaluation and no outcome-feature leakage
+- [x] Record the downstream result
+- **Status:** complete with NO-GO
+
 ## Frozen Decisions
 
 | Decision | Value |

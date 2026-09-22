@@ -71,8 +71,15 @@ def group_key(split, row):
 
 
 def split_indices(split, indices):
+    groups = split["utility"].shape[0]
     return {
-        key: value[indices] if isinstance(value, np.ndarray) else value
+        key: (
+            value[indices]
+            if isinstance(value, np.ndarray)
+            and value.ndim > 0
+            and value.shape[0] == groups
+            else value
+        )
         for key, value in split.items()
     }
 

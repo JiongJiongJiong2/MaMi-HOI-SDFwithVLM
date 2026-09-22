@@ -9,9 +9,12 @@
   - Recorded the frozen scope, split, budgets, utility, and stop conditions.
 
 ### Current Work
-- **Status:** in_progress
-- Next action:
-  - Wait for full D0-C generation, then run the frozen audit.
+- **Status:** complete
+- Result:
+  - D0-C passed after correcting target semantics and primary-budget
+    utility-range gating.
+  - P0 completed three seeds and failed the frozen ranking gate.
+  - P1 is not authorized.
 
 ### Protocol and Environment
 - **Status:** complete

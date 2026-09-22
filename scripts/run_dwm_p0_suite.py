@@ -41,6 +41,9 @@ def main():
                 args.output_dir
                 / f"{objective}_{condition.replace(':', '_')}_seed{seed}"
             )
+            if (output / "metrics.json").exists():
+                print(f"SKIP {output}", flush=True)
+                continue
             command = [
                 sys.executable,
                 str(root / "scripts" / "train_dwm_probe_rank.py"),

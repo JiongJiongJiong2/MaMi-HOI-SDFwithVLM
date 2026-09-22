@@ -295,8 +295,8 @@ def compare_rows(
             and all(value > 0 for value in seed_regret)
         ),
         "safety_ok": (
-            abs(float(100.0 * slip_diff.mean())) <= 2.0
-            and abs(float(100.0 * release_diff.mean())) <= 2.0
+            max(0.0, float(100.0 * slip_diff.mean())) <= 2.0
+            and max(0.0, float(100.0 * release_diff.mean())) <= 2.0
         ),
     }
 

@@ -28,19 +28,19 @@ Protocol and environment API
 - **Status:** in_progress
 
 ### 3. P0 Passive Probe Ranking
-- [ ] Implement the ranking model and matched baselines
-- [ ] Implement metrics, bootstrap, safety checks, and frozen gate
-- [ ] Pass a two-epoch server smoke
-- [ ] Run three formal seeds and evaluate test once
-- [ ] Record P0 GO/NO-GO and commit
-- **Status:** pending
+- [x] Implement the ranking model and matched baselines
+- [x] Implement metrics, bootstrap, safety checks, and frozen gate
+- [x] Pass a two-epoch server smoke
+- [x] Run three formal seeds and evaluate test once
+- [x] Record P0 GO/NO-GO and commit
+- **Status:** complete with NO-GO
 
 ### 4. P1 Active Probe
 - [ ] Implement the probe-outcome ensemble and selector
 - [ ] Pass mock-selector and simulator integration tests
 - [ ] Run the active-vs-passive promotion experiment
 - [ ] Record P1 GO/NO-GO and commit
-- **Status:** pending
+- **Status:** blocked by P0 NO-GO; not authorized
 
 ## Frozen Decisions
 

@@ -26,6 +26,7 @@ class DWMProbeRankingModelTest(unittest.TestCase):
         ])
         self.post_state = torch.randn(2, 168)
         self.candidate = torch.randn(2, 5, 8, 51)
+        self.target = torch.randn(2, 3)
 
     def test_output_shapes(self):
         output = self.model(
@@ -35,6 +36,7 @@ class DWMProbeRankingModelTest(unittest.TestCase):
             self.probe_mask,
             self.post_state,
             self.candidate,
+            self.target,
         )
         self.assertEqual(output["candidate_score"].shape, (2, 5))
         self.assertEqual(output["predicted_object_delta"].shape, (2, 5, 9))
@@ -61,6 +63,7 @@ class DWMProbeRankingModelTest(unittest.TestCase):
             self.probe_mask,
             self.post_state,
             self.candidate,
+            self.target,
         )
         second = self.model(
             self.initial,
@@ -69,6 +72,7 @@ class DWMProbeRankingModelTest(unittest.TestCase):
             self.probe_mask,
             self.post_state,
             self.candidate,
+            self.target,
         )
         torch.testing.assert_close(
             first["response_mu"],
@@ -84,6 +88,7 @@ class DWMProbeRankingModelTest(unittest.TestCase):
             self.probe_mask,
             self.post_state,
             self.candidate,
+            self.target,
         )
         second = self.model(
             self.initial,
@@ -92,6 +97,7 @@ class DWMProbeRankingModelTest(unittest.TestCase):
             self.probe_mask,
             self.post_state,
             self.candidate[:, permutation],
+            self.target,
         )
         torch.testing.assert_close(
             second["candidate_score"],

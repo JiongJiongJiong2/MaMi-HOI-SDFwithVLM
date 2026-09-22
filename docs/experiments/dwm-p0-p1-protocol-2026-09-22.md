@@ -148,9 +148,12 @@ probe_state
 probe_mask
 post_probe_state
 candidate_action
+target_translation
 ```
 
-It predicts a 16D Gaussian response context and one score per candidate.
+The target translation is normalized by `0.02 m` before the model. It is a
+task specification, not an observed outcome. It predicts a 16D Gaussian
+response context and one score per candidate.
 
 The primary model uses a pairwise/listwise ranking loss and a centered
 object-delta SmoothL1 auxiliary loss with weight 0.1.

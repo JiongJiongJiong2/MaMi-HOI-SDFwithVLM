@@ -69,8 +69,12 @@ class DWMProbeRankingModel(nn.Module):
             hidden_size=hidden_size,
             batch_first=True,
         )
+        self.target_encoder = nn.Sequential(
+            nn.Linear(3, hidden_size),
+            nn.SiLU(),
+        )
         self.output_head = nn.Sequential(
-            nn.Linear(hidden_size * 2 + response_dim, hidden_size),
+            nn.Linear(hidden_size * 3 + response_dim, hidden_size),
             nn.SiLU(),
             nn.Linear(hidden_size, 10),
         )
@@ -123,6 +127,7 @@ class DWMProbeRankingModel(nn.Module):
         probe_mask,
         post_probe_state,
         candidate_action,
+        target_translation,
         oracle_context=None,
     ):
         if initial_state.shape != (initial_state.shape[0], STATE_DIM):
@@ -143,6 +148,8 @@ class DWMProbeRankingModel(nn.Module):
             raise ValueError(
                 "candidate_action must be [B, K, 8, 51]"
             )
+        if target_translation.shape != (target_translation.shape[0], 3):
+            raise ValueError("target_translation must be [B, 3]")
 
         response_mu, response_logvar = self._response_stats(
             initial_state,
@@ -175,9 +182,16 @@ class DWMProbeRankingModel(nn.Module):
             candidate_count,
             response.shape[-1],
         )
+        target_feature = self.target_encoder(target_translation)
+        target_feature = target_feature[:, None].expand(
+            batch_size,
+            candidate_count,
+            self.hidden_size,
+        )
         output = self.output_head(torch.cat([
             response,
             candidate_feature,
+            target_feature,
         ], dim=-1))
         return {
             "candidate_score": output[..., 0],

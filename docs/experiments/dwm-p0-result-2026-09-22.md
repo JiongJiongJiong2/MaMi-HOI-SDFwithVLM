@@ -109,3 +109,10 @@ Server result root:
 ```text
 /root/autodl-tmp/dwm_p0_results_v2_20260922
 ```
+
+After the target-conditioning correction, the revised run is recorded in:
+
+```text
+docs/experiments/dwm-p0-gate-v3-20260922.json
+docs/experiments/dwm-p0-failure-analysis-2026-09-22.md
+```

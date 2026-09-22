@@ -209,6 +209,7 @@ def forward_batch(model, batch, normalization):
         normalized["probe_mask"],
         normalized["post_probe_state"],
         normalized["candidate_action"],
+        batch["target_translation"] / 0.02,
         **kwargs,
     )
 

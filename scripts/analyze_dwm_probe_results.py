@@ -17,6 +17,7 @@ def parse_args():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--bootstrap", type=int, default=10000)
     parser.add_argument("--bootstrap-seed", type=int, default=20260922)
+    parser.add_argument("--main-objective", default="residual")
     return parser.parse_args()
 
 
@@ -329,7 +330,7 @@ def main():
     args = parse_args()
     test = load_npz(args.dataset_dir / "test.npz")
     arms = load_arms(args.results_dir)
-    main_arms = select_arms(arms, "listwise", "all")
+    main_arms = select_arms(arms, args.main_objective, "all")
     no_probe_arms = select_arms(arms, "listwise", "none")
     if not main_arms or not no_probe_arms:
         raise ValueError("required listwise test predictions are missing")

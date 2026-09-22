@@ -42,6 +42,14 @@ Protocol and environment API
 - [ ] Record P1 GO/NO-GO and commit
 - **Status:** blocked by P0 NO-GO; not authorized
 
+### 5. P0-R Geometry Residual
+- [x] Implement geometry logit and zero-initialized residual score
+- [x] Add top-1-aware training objective
+- [ ] Run server unit tests
+- [ ] Train three seeds and evaluate frozen gate
+- [ ] Record P0-R GO/NO-GO
+- **Status:** implemented; waiting for a running server
+
 ## Frozen Decisions
 
 | Decision | Value |

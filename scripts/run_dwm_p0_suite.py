@@ -10,6 +10,7 @@ from pathlib import Path
 
 
 ARMS = (
+    ("residual", "all"),
     ("listwise", "all"),
     ("listwise", "none"),
     ("absolute", "all"),

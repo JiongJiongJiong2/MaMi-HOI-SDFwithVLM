@@ -29,7 +29,7 @@ def parse_args():
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument(
         "--objective",
-        choices=("listwise", "quotient", "absolute", "oracle"),
+        choices=("residual", "listwise", "quotient", "absolute", "oracle"),
         default="listwise",
     )
     parser.add_argument(
@@ -197,6 +197,14 @@ def ranking_loss(scores, utility, mode, temperature=0.002):
     raise ValueError(f"unsupported ranking mode: {mode}")
 
 
+def geometry_logit(candidate_action, target_translation):
+    hold = candidate_action[:, 0, -1, :3]
+    displacement = candidate_action[:, :, -1, :3] - hold[:, None]
+    return -torch.abs(
+        displacement - target_translation[:, None, :]
+    ).sum(dim=-1) / 0.02
+
+
 def forward_batch(model, batch, normalization):
     normalized = normalize_model_inputs(batch, normalization)
     kwargs = {}
@@ -210,6 +218,10 @@ def forward_batch(model, batch, normalization):
         normalized["post_probe_state"],
         normalized["candidate_action"],
         batch["target_translation"] / 0.02,
+        geometry_logit=geometry_logit(
+            batch["candidate_action"],
+            batch["target_translation"],
+        ),
         **kwargs,
     )
 
@@ -317,6 +329,7 @@ def main():
         hidden_size=args.hidden_size,
         response_dim=args.response_dim,
         oracle_context_dim=oracle_dim,
+        use_geometry_baseline=args.objective == "residual",
     ).to(args.device)
     optimizer = torch.optim.AdamW(
         model.parameters(),
@@ -349,6 +362,18 @@ def main():
             )
             if args.objective == "absolute":
                 loss = delta_loss
+            elif args.objective == "residual":
+                loss = ranking_loss(
+                    output["candidate_score"],
+                    batch["utility"],
+                    "listwise",
+                )
+                best = batch["utility"].argmax(dim=1)
+                loss = loss + 0.5 * F.cross_entropy(
+                    output["candidate_score"],
+                    best,
+                )
+                loss = loss + 0.1 * delta_loss
             else:
                 loss = ranking_loss(
                     output["candidate_score"],

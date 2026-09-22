@@ -104,6 +104,28 @@ class DWMProbeRankingModelTest(unittest.TestCase):
             first["candidate_score"][:, permutation],
         )
 
+    def test_geometry_residual_starts_at_geometry_baseline(self):
+        model = DWMProbeRankingModel(
+            hidden_size=32,
+            response_dim=8,
+            use_geometry_baseline=True,
+        )
+        geometry = torch.randn(2, 5)
+        output = model(
+            self.initial,
+            self.probe_action,
+            self.probe_state,
+            self.probe_mask,
+            self.post_state,
+            self.candidate,
+            self.target,
+            geometry_logit=geometry,
+        )
+        torch.testing.assert_close(
+            output["candidate_score"],
+            geometry,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

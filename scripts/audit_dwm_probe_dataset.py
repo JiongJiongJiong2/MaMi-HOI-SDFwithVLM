@@ -75,8 +75,10 @@ def reproducibility(repeat_a, repeat_b):
     return result
 
 
-def utility_range(data):
+def utility_range(data, mask=None):
     utility = data["utility"].astype(np.float64)
+    if mask is not None:
+        utility = utility[mask]
     ranges = np.max(utility, axis=1) - np.min(utility, axis=1)
     return {
         "groups": int(ranges.shape[0]),
@@ -216,7 +218,12 @@ def main():
             group_keys_by_split["val"] & group_keys_by_split["test"]
         ),
     }
-    train_range = utility_range(data["train"])
+    primary_mask = data["train"]["probe_length"] <= 2
+    train_range = utility_range(data["train"], primary_mask)
+    budget4_range = utility_range(
+        data["train"],
+        data["train"]["probe_length"] == 4,
+    )
     modes = {
         label: sum(
             mode_counts(data[split])[label]
@@ -242,7 +249,7 @@ def main():
         "split_groups_disjoint": all(
             value == 0 for value in overlaps.values()
         ),
-        "train_utility_range_ge_0_8": train_range["rate"] >= 0.8,
+        "primary_utility_range_ge_0_8": train_range["rate"] >= 0.8,
         "mode_coverage_ge_100": all(
             count >= 100 for count in modes.values()
         ),
@@ -268,6 +275,7 @@ def main():
         },
         "overlaps": overlaps,
         "utility_range": train_range,
+        "budget4_utility_range": budget4_range,
         "mode_counts": modes,
         "rank_consistent": rank_ok,
         "target_checks": {

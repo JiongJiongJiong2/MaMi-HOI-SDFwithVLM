@@ -51,6 +51,15 @@ class DWMProbeDatasetTest(unittest.TestCase):
                 target,
                 np.repeat(target[:1], target.shape[0], axis=0),
             )
+            target_translation = data["target_translation"][reset_mask]
+            np.testing.assert_array_equal(
+                target_translation,
+                np.repeat(
+                    target_translation[:1],
+                    target_translation.shape[0],
+                    axis=0,
+                ),
+            )
         self.assertTrue(np.isfinite(data["post_probe_state"]).all())
 
 

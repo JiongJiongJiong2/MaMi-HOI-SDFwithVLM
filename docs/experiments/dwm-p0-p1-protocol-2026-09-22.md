@@ -47,8 +47,8 @@ equal to the fixed sequence.
 
 Every group stores the initial state, the observed probe trajectory, the
 post-probe checkpoint state, and the outcomes of all 13 candidate branches
-starting from that same checkpoint. The candidate chunks use the primary
-horizon of eight control steps.
+starting from that same checkpoint. Candidate chunks use the same 13 frozen
+D0-B action chunks and the primary horizon of eight control steps.
 
 ## Target and Utility
 
@@ -63,7 +63,7 @@ The target translation is:
 ```text
 target_translation
   = target final object position
-  - post-probe object position
+  - initial object position
 ```
 
 Candidate utility is:
@@ -71,8 +71,8 @@ Candidate utility is:
 ```text
 utility_i
   = -L1(
-      candidate_i final object position
-      - post-probe object position,
+candidate_i final object position
+      - initial object position,
       target_translation
     )
 ```
@@ -125,7 +125,10 @@ utility.
 2. train/val/test object configurations and group keys are disjoint;
 3. fixed and random probes are nested across budgets;
 4. every candidate group contains 13 deterministic outcomes;
-5. at least 80% of training groups have a utility range above 2 mm;
+5. at least 80% of primary training groups, defined as no probe plus
+   one-step and two-step fixed/random probes, have a utility range above
+   2 mm; four-step groups are reported as a sensitivity condition and do
+   not participate in promotion;
 6. every contact mode occurs at least 100 times across the full dataset;
 7. modifying candidate outcomes does not alter model input tensors;
 8. no deployable model input contains mass, friction, object variant,

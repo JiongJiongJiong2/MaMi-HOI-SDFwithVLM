@@ -143,6 +143,7 @@ def build_group(
     split,
     probe_mode,
     target_action,
+    target_translation,
 ):
     post_probe = env.restore(checkpoint)
     probe_action, probe_state, probe_mask = padded_probe_arrays(
@@ -169,14 +170,12 @@ def build_group(
         candidate_contact_mode[index] = modes
         candidate_contact_impulse[index] = contact_impulse(states)
 
-    env.restore(checkpoint)
-    target_states, _ = rollout_action(env, target_action)
-    target_translation = (
-        target_states[-1].object_pose[:3]
-        - post_probe.object_pose[:3]
+    initial_position = np.asarray(
+        probe_states[0].object_pose[:3],
+        dtype=np.float64,
     )
     candidate_translation = (
-        candidate_final_pose[:, :3] - post_probe.object_pose[:3]
+        candidate_final_pose[:, :3] - initial_position[None]
     )
     utility = -np.sum(
         np.abs(candidate_translation - target_translation[None]),
@@ -231,6 +230,12 @@ def collect_config(args, split, config):
             candidate_actions=actions,
         )
         env.restore(initial_checkpoint)
+        target_states, _ = rollout_action(env, target_action)
+        reset_target_translation = (
+            target_states[-1].object_pose[:3]
+            - initial_state.object_pose[:3]
+        )
+        env.restore(initial_checkpoint)
         rows.append(build_group(
             env,
             initial_checkpoint,
@@ -242,6 +247,7 @@ def collect_config(args, split, config):
             split,
             "none",
             target_action,
+            reset_target_translation,
         ))
 
         fixed, random = make_probe_sequences(
@@ -278,6 +284,7 @@ def collect_config(args, split, config):
                     split,
                     mode,
                     target_action,
+                    reset_target_translation,
                 ))
         print(
             f"[{split}] {config.object_id} reset={reset_id}",
